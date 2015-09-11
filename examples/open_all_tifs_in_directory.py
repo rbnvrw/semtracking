@@ -11,6 +11,6 @@ for fn in util.gen_tif_paths(directory):
     im = im[0][:-64]
     break
 
-f = analysis.find_hough_circle(im, n=500, r_range=(8, 15))
+f = analysis.locate_hough_circles(im)
 plot.plot_hough_circle(f, im)
 plt.show()

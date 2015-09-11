@@ -2,6 +2,12 @@ import matplotlib.pyplot as plt
 
 
 def plot_hough_circle(f, im):
+    """
+
+    :param f:
+    :param im:
+    :return:
+    """
     _imshow_style = dict(origin='lower', interpolation='none',
                          cmap=plt.cm.gray)
     plt.figure()

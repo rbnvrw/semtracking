@@ -6,6 +6,16 @@ from scipy.spatial import cKDTree
 
 
 def find_hough_circle(im, sigma=2, low_threshold=10, high_threshold=50, r_range=(5, 20), n=200):
+    """
+
+    :param im:
+    :param sigma:
+    :param low_threshold:
+    :param high_threshold:
+    :param r_range:
+    :param n:
+    :return:
+    """
     edges = canny(im, sigma, low_threshold, high_threshold)
     hough = hough_circle(edges, np.arange(*r_range))
     indices = hough.ravel().argsort()[-n:]
@@ -18,7 +28,41 @@ def find_hough_circle(im, sigma=2, low_threshold=10, high_threshold=50, r_range=
     return f2.reset_index(drop=True)
 
 
+def refine_hough_circle(f, im):
+    """
+
+    :param f:
+    :param im:
+    """
+
+    return f
+
+
+def locate_hough_circles(im, sigma=2, low_threshold=10, high_threshold=50, r_range=(5, 20), n=200):
+    """
+
+    :param im:
+    :param sigma:
+    :param low_threshold:
+    :param high_threshold:
+    :param r_range:
+    :param n:
+    :return:
+    """
+    f = find_hough_circle(im, sigma=2, low_threshold=10, high_threshold=50, r_range=(5, 20), n=200)
+    f = refine_hough_circle(f, im)
+    return f
+
+
 def eliminate_duplicates(f, separation, pos_columns, mass_column):
+    """
+
+    :param f:
+    :param separation:
+    :param pos_columns:
+    :param mass_column:
+    :return:
+    """
     result = f.copy()
     while True:
         # Rescale positions, so that pairs are identified below a distance
