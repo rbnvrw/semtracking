@@ -26,6 +26,7 @@ def find_hough_circle(im, sigma=2, low_threshold=10, high_threshold=50, r_range=
     f['mass'] = hough[indices]
     r = f.r.median()
     f2 = eliminate_duplicates(f, (r, r), ['y', 'x'], 'mass')
+
     return f2.reset_index(drop=True)
 
 
