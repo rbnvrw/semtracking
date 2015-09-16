@@ -10,7 +10,8 @@ for fn in util.gen_tif_paths(directory):
     im = pims.Bioformats(directory + fn[1] + '.tif')
     im = im[0][:-64]
     break
-
+fig = plt.figure()
+ax = fig.add_subplot(111)
 f = analysis.locate_hough_circles(im)
 plot.plot_hough_circle(f, im)
 plt.show()
