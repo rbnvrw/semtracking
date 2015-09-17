@@ -15,4 +15,3 @@ for filename in util.gen_img_paths(directory):
     f = analysis.locate_hough_circles(im)
     plot.save_hough_circles(f, im, path)
     report.save_circles_to_csv(f, path, micron_per_pixel)
-    break
