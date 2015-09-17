@@ -22,7 +22,7 @@ def plot_hough_circle(f, im):
     return plt.gca()
 
 
-def save_hough_circles(f, im, filename, dpi=1000, linewidth=0.3):
+def save_hough_circles(f, im, filename, dpi=300, linewidth=0.3):
     """
     Save plot of image and Hough circles to a file in a subdirectory
     :param f: Dataframe with x, y, r
