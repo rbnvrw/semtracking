@@ -3,7 +3,7 @@ import os
 
 def gen_img_paths(directory, filter_ext='.tif', level=1):
     """
-
+    Generates image paths in directory (no recursion)
     :param filepath:
     """
     directory = directory.rstrip(os.path.sep)

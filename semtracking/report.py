@@ -4,7 +4,13 @@ import os
 
 
 def save_circles_to_csv(dataframe, filename, microns_per_pixel):
-    directory = os.path.dirname(filename) + '/report/'
+    """
+    Save fitted circles to csv files in subdir
+    :param dataframe:
+    :param filename:
+    :param microns_per_pixel:
+    """
+    directory = os.path.abspath(os.path.normpath(os.path.dirname(filename) + os.sep + 'report'))
 
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -15,7 +21,8 @@ def save_circles_to_csv(dataframe, filename, microns_per_pixel):
     dataframe *= microns_per_pixel
 
     # save dataframe
-    dataframe.to_csv(directory + filename + '_frame.csv', encoding='utf-8')
+    path = os.path.abspath(os.path.normpath(directory + os.sep + filename))
+    dataframe.to_csv(path + '_frame.csv', encoding='utf-8')
 
     # create summary
     mean_r = np.mean(dataframe['r'])
@@ -24,11 +31,11 @@ def save_circles_to_csv(dataframe, filename, microns_per_pixel):
     data = {
         'Mean radius (um)': [mean_r],
         'Dev. in radius (um)': [dev_r],
-        'Mean diameter (um)': [2*mean_r],
-        'Dev. in diameter (um)': [2*dev_r],
-        'Dev. in diameter (fraction)': [dev_r/mean_r]
+        'Mean diameter (um)': [2 * mean_r],
+        'Dev. in diameter (um)': [2 * dev_r],
+        'Dev. in diameter (fraction)': [dev_r / mean_r]
     }
     summary = DataFrame(data)
 
     # save
-    summary.to_csv(directory + filename + '_summary.csv', encoding='utf-8')
+    summary.to_csv(path + '_summary.csv', encoding='utf-8')

@@ -6,35 +6,78 @@ from scipy.spatial import cKDTree
 from scipy.interpolate import RectBivariateSpline
 
 
-def find_hough_circle(im, sigma=2, low_threshold=10, high_threshold=50, r_range=(5, 20), n=200):
+def auto_canny(image, sigma=2):
+    """
+    Calculate upper and lower thresholds for canny
+    :param image:
+    :param sigma:
+    :return:
     """
 
+    # compute the median of the single channel pixel intensities
+    v = np.median(image)
+
+    # apply automatic Canny edge detection using the computed median
+    lower = int(max(0, (2 / sigma) * v))
+    upper = int(min(255, (4 * sigma) * v))
+    edges = canny(image, sigma, lower, upper)
+
+    # return the edged image
+    return edges
+
+
+def find_hough_circles(im, sigma=2, r_range=(5, 40), n=200):
+    """
+    Locate circles using canny & hough transform
     :param im:
     :param sigma:
-    :param low_threshold:
-    :param high_threshold:
     :param r_range:
     :param n:
     :return:
     """
-    edges = canny(im, sigma, low_threshold, high_threshold)
+    # Find edges
+    edges = auto_canny(im, sigma)
+
+    # Find circles
     hough = hough_circle(edges, np.arange(*r_range))
+
+    # Find indices
     indices = hough.ravel().argsort()[-n:]
     indices = np.unravel_index(indices, hough.shape)
+
+    # Find mass and radii
     f = DataFrame(np.array(indices).T, columns=['r', 'y', 'x'])
     f['r'] += r_range[0]
     f['mass'] = hough[indices]
+
+    # Eliminate duplicates
     r = f.r.median()
     f2 = eliminate_duplicates(f, (r, r), ['y', 'x'], 'mass')
+
+    # Eliminate circles outside the image
+    mask = ((f2['y'] - f2['r']) >= 0) & ((f2['x'] - f2['r']) >= 0) & ((f2['y'] + f2['r']) <= im.shape[0]) & (
+        (f2['x'] + f2['r']) <= im.shape[1])
+
+    f2 = f2[mask]
 
     return f2.reset_index(drop=True)
 
 
-def refine_hough_circle(r, yc, xc, im, n=None, rad_range=None, spline_order=3):
-    if rad_range is None:
-        rad_range = (-r, r)
+def refine_circle(r, yc, xc, im, n=None, spline_order=3):
+    """
+    Make refinement to hough circles by using the edge from light to dark
+    :param r:
+    :param yc:
+    :param xc:
+    :param im:
+    :param n:
+    :param spline_order:
+    :return:
+    """
     if n is None:
         n = int(2 * np.pi * np.sqrt(r ** 2))
+
+    rad_range = (-r, r)
 
     t = np.linspace(-np.pi, np.pi, n, endpoint=False)
     normalangle = np.arctan2(r * np.sin(t), r * np.cos(t))
@@ -82,18 +125,20 @@ def refine_hough_circle(r, yc, xc, im, n=None, rad_range=None, spline_order=3):
     y_new = (y + r_dev * step_y)
     coord_new = np.vstack([y_new, x_new]).T
 
-    fit = fit_circle(coord_new)
+    fit = fit_circle(coord_new, r, yc, xc)
 
     return fit
 
 
-def refine_hough_circles(f, im, n=None, rad_range=None, spline_order=3):
+def refine_circles(f, im, n=None, spline_order=3):
     """
-
+    Make refinement to hough circles by using the edge from light to dark
     :param f:
     :param im:
+    :param n:
+    :param spline_order:
+    :return:
     """
-
     assert im.ndim == 2
     rs = f['r']
     ycs = f['y']
@@ -102,31 +147,29 @@ def refine_hough_circles(f, im, n=None, rad_range=None, spline_order=3):
     fit = DataFrame(columns=['r', 'y', 'x', 'dev'])
     for r, yc, xc in zip(rs, ycs, xcs):
         fit = concat(
-            [fit, refine_hough_circle(r, yc, xc, im, n, rad_range, spline_order)],
+            [fit, refine_circle(r, yc, xc, im, n, spline_order)],
             ignore_index=True)
 
     return fit
 
 
-def locate_hough_circles(im, sigma=2, low_threshold=10, high_threshold=50, r_range=(5, 40), n=200):
+def locate_hough_circles(im, sigma=2, r_range=(5, 40), n=200):
     """
-
+    Locate & refine circles using hough transform
     :param im:
     :param sigma:
-    :param low_threshold:
-    :param high_threshold:
     :param r_range:
     :param n:
     :return:
     """
-    f = find_hough_circle(im, sigma, low_threshold, high_threshold, r_range, n)
-    f = refine_hough_circles(f, im, n)
+    f = find_hough_circles(im, sigma, r_range, n)
+    f = refine_circles(f, im, n)
     return f
 
 
 def eliminate_duplicates(f, separation, pos_columns, mass_column):
     """
-
+    Eliminate duplicate circles
     :param f:
     :param separation:
     :param pos_columns:
@@ -139,7 +182,7 @@ def eliminate_duplicates(f, separation, pos_columns, mass_column):
         # of 1. Do so every iteration (room for improvement?)
         positions = result[pos_columns].values / list(separation)
         mass = result[mass_column].values
-        duplicates = cKDTree(positions, 30).query_pairs(1)
+        duplicates = cKDTree(positions, 30).query_pairs(1.5)
         if len(duplicates) == 0:
             break
         to_drop = []
@@ -157,11 +200,41 @@ def eliminate_duplicates(f, separation, pos_columns, mass_column):
     return result
 
 
-def fit_circle(features):
-    # from x, y points, returns an algebraic fit of a circle
-    # (not optimal least squares, but very fast)
-    # returns center, radius and rms deviation from fitted
+def remove_outlier_points(features, r, yc, xc):
+    """
+    Remove outliers that are not on the circle
+    :param features:
+    :param r:
+    :param yc:
+    :param xc:
+    :return:
+    """
+    x = features[:, 1]
+    y = features[:, 0]
 
+    mask = np.sqrt((x - xc) ** 2 + (y - yc) ** 2) <= 1.2 * r
+
+    features = np.vstack([y, x]).T
+
+    features = features[mask]
+
+    return features
+
+
+def fit_circle(features, r, yc, xc):
+    """
+     From x, y points, returns an algebraic fit of a circle
+    (not optimal least squares, but very fast)
+    :param features:
+    :param r:
+    :param yc:
+    :param xc:
+    :return: returns center, radius and rms deviation from fitted
+    """
+    # remove points that are clearly not on circle
+    features = remove_outlier_points(features, r, yc, xc)
+
+    # Get x,y
     x = features[:, 1]
     y = features[:, 0]
 
