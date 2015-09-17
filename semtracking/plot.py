@@ -40,7 +40,8 @@ def save_hough_circles(f, im, filename, dpi=1000, linewidth=0.3):
     filename = os.path.basename(filename)
     _imshow_style = dict(origin='lower', interpolation='none',
                          cmap=plt.cm.gray)
-
+    plt.clf()
+    plt.cla()
     plt.imshow(im, **_imshow_style)
     plt.gca().invert_yaxis()
     for i in f.index:
