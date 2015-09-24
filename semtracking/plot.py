@@ -1,5 +1,6 @@
-import matplotlib.pyplot as plt
-import os
+from os import path, makedirs, sep
+
+from matplotlib.pyplot import Circle, imshow, gca, savefig, scatter, show, cla, cm, clf
 
 
 def plot_hough_circle(f, im):
@@ -9,17 +10,17 @@ def plot_hough_circle(f, im):
     :param im: Image
     :return: The axis
     """
-    plt.clf()
-    plt.cla()
+    clf()
+    cla()
     _imshow_style = dict(origin='lower', interpolation='none',
-                         cmap=plt.cm.gray)
+                         cmap=cm.gray)
 
-    plt.imshow(im, **_imshow_style)
-    plt.gca().invert_yaxis()
+    imshow(im, **_imshow_style)
+    gca().invert_yaxis()
     for i in f.index:
-        plt.gca().add_patch(plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid'))
-    plt.show()
-    return plt.gca()
+        gca().add_patch(Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid'))
+    show()
+    return gca()
 
 
 def save_hough_circles(f, im, filename, dpi=300, linewidth=0.3):
@@ -32,26 +33,26 @@ def save_hough_circles(f, im, filename, dpi=300, linewidth=0.3):
     :param linewidth: Linewidth of the circles
     :return:
     """
-    directory = os.path.abspath(os.path.normpath(os.path.dirname(filename) + os.sep + 'fits'))
+    directory = path.abspath(path.normpath(path.dirname(filename) + sep + 'fits'))
 
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+    if not path.exists(directory):
+        makedirs(directory)
 
-    filename = os.path.basename(filename)
+    filename = path.basename(filename)
     _imshow_style = dict(origin='lower', interpolation='none',
-                         cmap=plt.cm.gray)
-    plt.clf()
-    plt.cla()
-    plt.imshow(im, **_imshow_style)
-    plt.gca().invert_yaxis()
+                         cmap=cm.gray)
+    clf()
+    cla()
+    imshow(im, **_imshow_style)
+    gca().invert_yaxis()
     for i in f.index:
-        circle = plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid', lw=linewidth,
-                            label=i)
-        plt.gca().add_patch(circle)
+        circle = Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid', lw=linewidth,
+                        label=i)
+        gca().add_patch(circle)
 
-        plt.gca().annotate(i, (f.loc[i].x, f.loc[i].y), color='w', weight='normal',
-                           fontsize=3, ha='center', va='center')
-    plt.savefig(os.path.abspath(os.path.normpath(directory + os.sep + filename)) + '_fit.tif', dpi=dpi)
+        gca().annotate(i, (f.loc[i].x, f.loc[i].y), color='w', weight='normal',
+                       fontsize=3, ha='center', va='center')
+    savefig(path.abspath(path.normpath(directory + sep + filename)) + '_fit.tif', dpi=dpi)
 
 
 def plot_image(im):
@@ -61,11 +62,11 @@ def plot_image(im):
     :return:
     """
     _imshow_style = dict(origin='lower', interpolation='none',
-                         cmap=plt.cm.gray)
+                         cmap=cm.gray)
 
-    plt.imshow(im, **_imshow_style)
-    plt.show()
-    return plt.gca()
+    imshow(im, **_imshow_style)
+    show()
+    return gca()
 
 
 def plot_scatter(x, y, im):
@@ -76,4 +77,4 @@ def plot_scatter(x, y, im):
     :param im:
     """
     plot_image(im)
-    plt.scatter(x, y, c='r')
+    scatter(x, y, c='r')

@@ -1,19 +1,19 @@
-import os
+from os import path
 from setuptools import setup
 
 
-def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+def read(file_name):
+    return open(path.join(path.dirname(__file__), file_name)).read()
 
 
 # In some cases, the numpy include path is not present by default.
 # Let's try to obtain it.
 try:
-    import numpy
+    from numpy import get_include
 except ImportError:
     ext_include_dirs = []
 else:
-    ext_include_dirs = [numpy.get_include(), ]
+    ext_include_dirs = [get_include(), ]
 
 setup_parameters = dict(
     name="semtracking",

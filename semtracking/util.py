@@ -1,4 +1,4 @@
-import os
+from os import path, walk
 
 
 def gen_img_paths(directory, filter_ext='.tif', level=1):
@@ -6,14 +6,14 @@ def gen_img_paths(directory, filter_ext='.tif', level=1):
     Generates image paths in directory (no recursion)
     :param filepath:
     """
-    directory = directory.rstrip(os.path.sep)
-    assert os.path.isdir(directory)
-    num_sep = directory.count(os.path.sep)
-    for root, dirs, files in os.walk(directory):
-        num_sep_this = root.count(os.path.sep)
+    directory = directory.rstrip(path.sep)
+    assert path.isdir(directory)
+    num_sep = directory.count(path.sep)
+    for root, dirs, files in walk(directory):
+        num_sep_this = root.count(path.sep)
         if num_sep + level <= num_sep_this:
             continue
-        for filepath in files:
-            filename, extension = os.path.splitext(filepath)
+        for file_path in files:
+            filename, extension = path.splitext(file_path)
             if extension == filter_ext:
                 yield filename
