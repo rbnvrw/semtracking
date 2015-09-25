@@ -1,5 +1,6 @@
 from numpy.linalg import LinAlgError
 import skimage.feature
+import skimage.filters
 from skimage import transform
 import pandas
 import numpy as np
@@ -97,21 +98,34 @@ def get_max_neg_slopes(intensity, r):
     :return:
     """
     # identify the regions around the max negative slope
+    # use sobel filter for edge detection and smoothening the image
+    intensity = skimage.filters.sobel(intensity)
+
+    # take differential to see changes in intensity
     intensity_diff = np.diff(intensity, 1)
-    max_neg_slopes = np.argmin(intensity_diff, axis=1)
-    max_neg_slope_vals = np.min(intensity_diff, axis=1)
+
+    # give larger weight to spots in the center, as this is only a refinement of the hough circle
+    threshold = np.min(intensity_diff) * 0.4
+    distance_from_center = [threshold * i for j in
+                            (range(0, intensity_diff.shape[1] / 2), range(intensity_diff.shape[1] / 2, 0, -1))
+                            for i in j]
+
+    # create weighted intensity difference array
+    weighted_intensity_diff = intensity_diff + distance_from_center
+
+    # find the minima
+    max_neg_slopes = np.argmin(weighted_intensity_diff, axis=1)
+
+    # find the intensity values at these positions
+    max_neg_slope_vals = np.take(intensity_diff, max_neg_slopes, axis=1)
 
     # Remove values under intensity diff threshold
     threshold = np.min(max_neg_slope_vals) * 0.4
     threshold_mask = (max_neg_slope_vals > threshold)
     max_neg_slope_vals[threshold_mask] = 0
 
-    # These coordinates should lie on an almost straight line
-    # Throw away points farther away from the mean value than 0.5 r
-    mean_edge_position = np.sum(max_neg_slopes * max_neg_slope_vals) / np.sum(max_neg_slope_vals)
-    edge_mask = (max_neg_slopes > (mean_edge_position + r / 2)) | (max_neg_slopes < (mean_edge_position - r / 2))
-    max_neg_slopes[edge_mask] = mean_edge_position
-    max_neg_slopes[threshold_mask] = mean_edge_position
+    # rescale positions
+    max_neg_slopes -= 0.5 * np.ones(max_neg_slopes.shape)
 
     return max_neg_slopes
 
