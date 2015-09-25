@@ -1,30 +1,10 @@
-from skimage.feature import canny
-from skimage.transform import hough_circle
-from pandas import DataFrame, concat
-from numpy import newaxis, argmin, arange, cos, diff, sum, arctan2, linalg, equal, argsort, median, unravel_index, \
-    vstack, array, sqrt, mean, pi, sin, linspace
+from numpy.linalg import LinAlgError
+import skimage.feature
+from skimage import transform
+import pandas
+import numpy as np
 from scipy.spatial import cKDTree
 from scipy.interpolate import RectBivariateSpline
-
-
-def auto_canny(image, sigma=2):
-    """
-    Calculate upper and lower thresholds for canny
-    :param image:
-    :param sigma:
-    :return:
-    """
-
-    # compute the median of the single channel pixel intensities
-    v = median(image)
-
-    # apply automatic Canny edge detection using the computed median
-    lower = int(max(0, (2 / sigma) * v))
-    upper = int(min(255, (4 * sigma) * v))
-    edges = canny(image, sigma, lower, upper)
-
-    # return the edged image
-    return edges
 
 
 def find_hough_circles(im, sigma=2, r_range=(5, 40), n=200):
@@ -37,17 +17,17 @@ def find_hough_circles(im, sigma=2, r_range=(5, 40), n=200):
     :return:
     """
     # Find edges
-    edges = auto_canny(im, sigma)
+    edges = skimage.feature.canny(im, sigma=sigma)
 
     # Find circles
-    hough = hough_circle(edges, arange(*r_range))
+    hough = transform.hough_circle(edges, np.arange(*r_range))
 
     # Find indices
     indices = hough.ravel().argsort()[-n:]
-    indices = unravel_index(indices, hough.shape)
+    indices = np.unravel_index(indices, hough.shape)
 
     # Find mass and radii
-    f = DataFrame(array(indices).T, columns=['r', 'y', 'x'])
+    f = pandas.DataFrame(np.array(indices).T, columns=['r', 'y', 'x'])
     f['r'] += r_range[0]
     f['mass'] = hough[indices]
 
@@ -64,6 +44,97 @@ def find_hough_circles(im, sigma=2, r_range=(5, 40), n=200):
     return f2.reset_index(drop=True)
 
 
+def get_intensity_interpolation(r, xc, yc, n, rad_range, spline_order, im):
+    """
+    Create a spline representation of the intensity
+    :param r:
+    :param xc:
+    :param yc:
+    :param n:
+    :param rad_range:
+    :param spline_order:
+    :param im:
+    :return:
+    """
+    t = np.linspace(-np.pi, np.pi, n, endpoint=False)
+    normal_angle = np.arctan2(r * np.sin(t), r * np.cos(t))
+    x = r * np.cos(t) + xc
+    y = r * np.sin(t) + yc
+    step_x = np.cos(normal_angle)
+    step_y = np.sin(normal_angle)
+    steps = np.arange(rad_range[0], rad_range[1] + 1, 1)[np.newaxis, :]
+
+    x_rad = x[:, np.newaxis] + steps * step_x[:, np.newaxis]
+    y_rad = y[:, np.newaxis] + steps * step_y[:, np.newaxis]
+
+    # create a spline representation of the colloid region
+    bound_y = slice(max(round(yc - r + rad_range[0]), 0),
+                    min(round(yc + r + rad_range[1] + 1), im.shape[0]))
+    bound_x = slice(max(round(xc - r + rad_range[0]), 0),
+                    min(round(xc + r + rad_range[1] + 1), im.shape[1]))
+
+    interpolation = RectBivariateSpline(np.arange(bound_y.start, bound_y.stop),
+                                        np.arange(bound_x.start, bound_x.stop),
+                                        im[bound_y, bound_x], kx=spline_order,
+                                        ky=spline_order, s=0)
+
+    mean_intensity = np.mean(im)
+    intensity = interpolation(y_rad, x_rad, grid=False)
+
+    # check for points outside the image; set these to mean
+    mask = ((y_rad >= bound_y.stop) | (y_rad < bound_y.start) |
+            (x_rad >= bound_x.stop) | (x_rad < bound_x.start))
+    intensity[mask] = mean_intensity
+
+    return intensity, (x, y, step_x, step_y)
+
+
+def get_max_neg_slopes(intensity, r):
+    """
+    Get positions with maximum negative slope
+    :param intensity:
+    :param r:
+    :return:
+    """
+    # identify the regions around the max negative slope
+    intensity_diff = np.diff(intensity, 1)
+    max_neg_slopes = np.argmin(intensity_diff, axis=1)
+    max_neg_slope_vals = np.min(intensity_diff, axis=1)
+
+    # Remove values under intensity diff threshold
+    threshold = np.min(max_neg_slope_vals) * 0.4
+    threshold_mask = (max_neg_slope_vals > threshold)
+    max_neg_slope_vals[threshold_mask] = 0
+
+    # These coordinates should lie on an almost straight line
+    # Throw away points farther away from the mean value than 0.5 r
+    mean_edge_position = np.sum(max_neg_slopes * max_neg_slope_vals) / np.sum(max_neg_slope_vals)
+    edge_mask = (max_neg_slopes > (mean_edge_position + r / 2)) | (max_neg_slopes < (mean_edge_position - r / 2))
+    max_neg_slopes[edge_mask] = mean_edge_position
+    max_neg_slopes[threshold_mask] = mean_edge_position
+
+    return max_neg_slopes
+
+
+def spline_coords_to_normal(max_neg_slopes, rad_range, x, y, step_x, step_y):
+    """
+    Calculate normal coordinates from spline representation coordinates
+    :param max_neg_slopes:
+    :param rad_range:
+    :param x:
+    :param y:
+    :param step_x:
+    :param step_y:
+    :return:
+    """
+    r_dev = max_neg_slopes + rad_range[0] + 0.5
+    x_new = (x + r_dev * step_x)
+    y_new = (y + r_dev * step_y)
+    coord_new = np.vstack([y_new, x_new]).T
+
+    return coord_new
+
+
 def refine_circle(r, yc, xc, im, n=None, spline_order=3):
     """
     Make refinement to hough circles by using the edge from light to dark
@@ -76,55 +147,27 @@ def refine_circle(r, yc, xc, im, n=None, spline_order=3):
     :return:
     """
     if n is None:
-        n = int(2 * pi * sqrt(r ** 2))
+        n = int(2 * np.pi * np.sqrt(r ** 2))
 
     rad_range = (-r, r)
 
-    t = linspace(-pi, pi, n, endpoint=False)
-    normal_angle = arctan2(r * sin(t), r * cos(t))
-    x = r * cos(t) + xc
-    y = r * sin(t) + yc
-    step_x = cos(normal_angle)
-    step_y = sin(normal_angle)
-    steps = arange(rad_range[0], rad_range[1] + 1, 1)[newaxis, :]
+    # Get intensity in spline representation
+    intensity, (x, y, step_x, step_y) = get_intensity_interpolation(r, xc, yc, n, rad_range, spline_order, im)
 
-    x_rad = x[:, newaxis] + steps * step_x[:, newaxis]
-    y_rad = y[:, newaxis] + steps * step_y[:, newaxis]
-
-    # create a spline representation of the colloid region
-    bound_y = slice(max(round(yc - r + rad_range[0]), 0),
-                    min(round(yc + r + rad_range[1] + 1), im.shape[0]))
-    bound_x = slice(max(round(xc - r + rad_range[0]), 0),
-                    min(round(xc + r + rad_range[1] + 1), im.shape[1]))
-
-    interpolation = RectBivariateSpline(arange(bound_y.start, bound_y.stop),
-                                  arange(bound_x.start, bound_x.stop),
-                                  im[bound_y, bound_x], kx=spline_order,
-                                  ky=spline_order, s=0)
-
-    intensity = interpolation(y_rad, x_rad, grid=False)
-
-    # check for points outside the image; set these to 0
-    mask = ((y_rad >= bound_y.stop) | (y_rad < bound_y.start) |
-            (x_rad >= bound_x.stop) | (x_rad < bound_x.start))
-    intensity[mask] = 0
+    # mean intensity
+    mean_intensity = np.mean(im)
 
     # First check if intensity is high enough for this to be a particle
-    mean_particle_intensity = mean(intensity)
-    mean_intensity = mean(im)
+    mean_particle_intensity = np.mean(intensity)
 
     if mean_particle_intensity < mean_intensity:
-        return DataFrame(columns=['r', 'y', 'x', 'dev'])
+        return pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
 
-    # identify the regions around the max negative slope
-    intensity_diff = diff(intensity, 1)
-    max_neg_slopes = argmin(intensity_diff, axis=1)
+    # Get points with max negative slope
+    max_neg_slopes = get_max_neg_slopes(intensity, r)
 
-    # calculate new coordinates
-    r_dev = max_neg_slopes + rad_range[0] + 0.5
-    x_new = (x + r_dev * step_x)
-    y_new = (y + r_dev * step_y)
-    coord_new = vstack([y_new, x_new]).T
+    # Calculate new circle coordinates
+    coord_new = spline_coords_to_normal(max_neg_slopes, rad_range, x, y, step_x, step_y)
 
     # Fit a circle to the calculated coordinates
     fit = fit_circle(coord_new, r, yc, xc)
@@ -146,9 +189,9 @@ def refine_circles(f, im, n=None, spline_order=3):
     ycs = f['y']
     xcs = f['x']
 
-    fit = DataFrame(columns=['r', 'y', 'x', 'dev'])
+    fit = pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
     for r, yc, xc in zip(rs, ycs, xcs):
-        fit = concat(
+        fit = pandas.concat(
             [fit, refine_circle(r, yc, xc, im, n, spline_order)],
             ignore_index=True)
 
@@ -190,13 +233,13 @@ def eliminate_duplicates(f, separation, pos_columns, mass_column):
         to_drop = []
         for pair in duplicates:
             # Drop the dimmer one.
-            if equal(*mass.take(pair, 0)):
+            if np.equal(*mass.take(pair, 0)):
                 # Rare corner case: a tie!
                 # Break ties by sorting by sum of coordinates, to avoid
                 # any randomness resulting from cKDTree returning a set.
-                dimmer = argsort(sum(positions.take(pair, 0), 1))[0]
+                dimmer = np.argsort(np.sum(positions.take(pair, 0), 1))[0]
             else:
-                dimmer = argmin(mass.take(pair, 0))
+                dimmer = np.argmin(mass.take(pair, 0))
             to_drop.append(pair[dimmer])
         result.drop(to_drop, inplace=True)
     return result
@@ -215,9 +258,9 @@ def remove_outlier_points(features, r, yc, xc):
     y = features[:, 0]
 
     # Remove points farther than 1.2 r from the center
-    mask = sqrt((x - xc) ** 2 + (y - yc) ** 2) <= 1.2 * r
+    mask = np.sqrt((x - xc) ** 2 + (y - yc) ** 2) <= 1.2 * r
 
-    features = vstack([y, x]).T
+    features = np.vstack([y, x]).T
 
     # Apply the mask
     features = features[mask]
@@ -243,8 +286,8 @@ def fit_circle(features, r, yc, xc):
     y = features[:, 0]
 
     # coordinates of the barycenter
-    x_m = mean(x)
-    y_m = mean(y)
+    x_m = np.mean(x)
+    y_m = np.mean(y)
 
     # calculation of the reduced coordinates
     u = x - x_m
@@ -253,31 +296,35 @@ def fit_circle(features, r, yc, xc):
     # linear system defining the center in reduced coordinates (uc, vc):
     #    Suu * uc +  Suv * vc = (Suuu + Suvv)/2
     #    Suv * uc +  Svv * vc = (Suuv + Svvv)/2
-    Suv = sum(u * v)
-    Suu = sum(u ** 2)
-    Svv = sum(v ** 2)
-    Suuv = sum(u ** 2 * v)
-    Suvv = sum(u * v ** 2)
-    Suuu = sum(u ** 3)
-    Svvv = sum(v ** 3)
+    s_uv = np.sum(u * v)
+    s_uu = np.sum(u ** 2)
+    s_vv = np.sum(v ** 2)
+    s_uuv = np.sum(u ** 2 * v)
+    s_uvv = np.sum(u * v ** 2)
+    s_uuu = np.sum(u ** 3)
+    s_vvv = np.sum(v ** 3)
 
     # Solving the linear system
-    A = array([[Suu, Suv], [Suv, Svv]])
-    B = array([Suuu + Suvv, Svvv + Suuv]) / 2.0
+    a = np.array([[s_uu, s_uv], [s_uv, s_vv]])
+    b = np.array([s_uuu + s_uvv, s_vvv + s_uuv]) / 2.0
     try:
-        uc, vc = linalg.solve(A, B)
-    except:
-        return DataFrame(columns=['r', 'y', 'x', 'dev'])
+        solution, _, _, _ = np.linalg.lstsq(a, b)
+    except LinAlgError:
+        return pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
+
+    # Calculate new centers
+    uc = solution[0]
+    vc = solution[1]
 
     xc_1 = x_m + uc
     yc_1 = y_m + vc
 
     # Calculation of all distances from the center (xc_1, yc_1)
-    Ri_1 = sqrt((x - xc_1) ** 2 + (y - yc_1) ** 2)
-    R_1 = mean(Ri_1)
-    sqrdeviation = mean((Ri_1 - R_1) ** 2)
+    ri_1 = np.sqrt((x - xc_1) ** 2 + (y - yc_1) ** 2)
+    r_1 = np.mean(ri_1)
+    square_deviation = np.mean((ri_1 - r_1) ** 2)
 
-    data = {'r': [R_1], 'y': [yc_1], 'x': [xc_1], 'dev': [sqrdeviation]}
-    fit = DataFrame(data)
+    data = {'r': [r_1], 'y': [yc_1], 'x': [xc_1], 'dev': [square_deviation]}
+    fit = pandas.DataFrame(data)
 
     return fit

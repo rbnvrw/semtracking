@@ -76,5 +76,5 @@ def plot_scatter(x, y, im):
     :param y:
     :param im:
     """
-    plot_image(im)
-    scatter(x, y, c='r')
+    ax = plot_image(im)
+    ax.scatter(x, y, c='r', s=20)
