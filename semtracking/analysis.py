@@ -6,6 +6,7 @@ import pandas
 import numpy as np
 from scipy.spatial import cKDTree
 from scipy.interpolate import RectBivariateSpline
+import plot
 
 
 def find_hough_circles(im, sigma=2, r_range=(5, 40), n=200):
@@ -97,15 +98,11 @@ def get_max_neg_slopes(intensity, r):
     :param r:
     :return:
     """
-    # identify the regions around the max negative slope
-    # use sobel filter for edge detection and smoothening the image
-    intensity = skimage.filters.sobel(intensity)
-
     # take differential to see changes in intensity
     intensity_diff = np.diff(intensity, 1)
 
     # give larger weight to spots in the center, as this is only a refinement of the hough circle
-    threshold = np.min(intensity_diff) * 0.4
+    threshold = np.min(intensity_diff) * 0.1
     distance_from_center = [threshold * i for j in
                             (range(0, intensity_diff.shape[1] / 2), range(intensity_diff.shape[1] / 2, 0, -1))
                             for i in j]
@@ -123,9 +120,6 @@ def get_max_neg_slopes(intensity, r):
     threshold = np.min(max_neg_slope_vals) * 0.4
     threshold_mask = (max_neg_slope_vals > threshold)
     max_neg_slope_vals[threshold_mask] = 0
-
-    # rescale positions
-    max_neg_slopes -= 0.5 * np.ones(max_neg_slopes.shape)
 
     return max_neg_slopes
 
