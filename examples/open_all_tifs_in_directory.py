@@ -21,7 +21,11 @@ for filename in util.gen_img_paths(directory):
     im = im[0][:-64]
 
     # Locate and refine circles
-    f = analysis.locate_hough_circles(im)
+    circle_finder = analysis.CircleFinder(im)
+    circle_finder.locate_hough_circles()
+
+    # Show result for manual checking
+    f = circle_finder.user_check_fits()
 
     # Save fit images
     plot.save_hough_circles(f, im, path)

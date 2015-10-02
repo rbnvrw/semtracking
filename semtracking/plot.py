@@ -1,6 +1,5 @@
 from os import path, makedirs, sep
-
-from matplotlib.pyplot import Circle, imshow, gca, savefig, scatter, show, cla, cm, clf
+import matplotlib.pyplot as plt
 
 
 def plot_hough_circle(f, im):
@@ -10,17 +9,60 @@ def plot_hough_circle(f, im):
     :param im: Image
     :return: The axis
     """
-    clf()
-    cla()
+    plt.clf()
+    plt.cla()
     _imshow_style = dict(origin='lower', interpolation='none',
-                         cmap=cm.gray)
+                         cmap=plt.cm.gray)
 
-    imshow(im, **_imshow_style)
-    gca().invert_yaxis()
+    plt.imshow(im, **_imshow_style)
+    plt.gca().invert_yaxis()
     for i in f.index:
-        gca().add_patch(Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid'))
-    show()
-    return gca()
+        plt.gca().add_patch(plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid'))
+    plt.show()
+    return plt.gca()
+
+
+def plot_fits_for_user_confirmation(f, im, pick_callback):
+    """
+    Ask user to check if all fits are correct.
+    Clicking on a fit removes it from the results.
+    :param f:
+    :param im:
+    :param pick_callback:
+    """
+    _imshow_style = dict(origin='lower', interpolation='none',
+                         cmap=plt.cm.gray)
+    plt.clf()
+    plt.cla()
+    plt.imshow(im, **_imshow_style)
+    plt.gca().invert_yaxis()
+    for i in f.index:
+        circle = plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid',
+                            label=i)
+
+        # Enable picking
+        circle.set_picker(10)
+
+        plt.gca().add_patch(circle)
+
+        plt.gca().annotate(i, (f.loc[i].x, f.loc[i].y), color='b', weight='normal',
+                           size=8, ha='center', va='center')
+
+    plt.gca().set_title('Please check the result. Click on a circle to toggle removal. Close to confirm.')
+    plt.gcf().canvas.mpl_connect('pick_event', pick_callback)
+    plt.show()
+
+
+def set_annotation_color(index, color):
+    """
+    Remove particle index from the current plot
+    :param index:
+    """
+    children = plt.gca().get_children()
+    children = [c for c in children if isinstance(c, plt.Annotation) and int(c._text) == index]
+
+    for child in children:
+        child.set_color(color)
 
 
 def save_hough_circles(f, im, filename, dpi=300, linewidth=0.3):
@@ -40,19 +82,19 @@ def save_hough_circles(f, im, filename, dpi=300, linewidth=0.3):
 
     filename = path.basename(filename)
     _imshow_style = dict(origin='lower', interpolation='none',
-                         cmap=cm.gray)
-    clf()
-    cla()
-    imshow(im, **_imshow_style)
-    gca().invert_yaxis()
+                         cmap=plt.cm.gray)
+    plt.clf()
+    plt.cla()
+    plt.imshow(im, **_imshow_style)
+    plt.gca().invert_yaxis()
     for i in f.index:
-        circle = Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid', lw=linewidth,
-                        label=i)
-        gca().add_patch(circle)
+        circle = plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid', lw=linewidth,
+                            label=i)
+        plt.gca().add_patch(circle)
 
-        gca().annotate(i, (f.loc[i].x, f.loc[i].y), color='w', weight='normal',
-                       fontsize=3, ha='center', va='center')
-    savefig(path.abspath(path.normpath(directory + sep + filename)) + '_fit.tif', dpi=dpi)
+        plt.gca().annotate(i, (f.loc[i].x, f.loc[i].y), color='w', weight='normal',
+                           fontsize=3, ha='center', va='center')
+    plt.savefig(path.abspath(path.normpath(directory + sep + filename)) + '_fit.tif', dpi=dpi)
 
 
 def plot_image(im):
@@ -62,11 +104,11 @@ def plot_image(im):
     :return:
     """
     _imshow_style = dict(origin='lower', interpolation='none',
-                         cmap=cm.gray)
+                         cmap=plt.cm.gray)
 
-    imshow(im, **_imshow_style)
-    show()
-    return gca()
+    plt.imshow(im, **_imshow_style)
+    plt.show()
+    return plt.gca()
 
 
 def plot_scatter(x, y, im):
