@@ -201,6 +201,8 @@ class CircleFinder:
         mask = (self.fits['remove'] == False)
         self.fits = self.fits[mask]
 
+        self.fits.drop('remove', axis=1, inplace=True)
+
         # Update indices
         self.fits.index = range(1, len(self.fits) + 1)
 
