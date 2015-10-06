@@ -95,6 +95,7 @@ def save_hough_circles(f, im, filename, dpi=300, linewidth=0.3):
         plt.gca().annotate(i, (f.loc[i].x, f.loc[i].y), color='w', weight='normal',
                            fontsize=3, ha='center', va='center')
     plt.savefig(path.abspath(path.normpath(directory + sep + filename)) + '_fit.tif', dpi=dpi)
+    plt.close()
 
 
 def plot_image(im):

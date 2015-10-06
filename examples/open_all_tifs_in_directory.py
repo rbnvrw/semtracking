@@ -18,14 +18,12 @@ for filename in util.gen_img_paths(directory):
     # Set scale
     micron_per_pixel = im.calibration
 
+    r_range = (0.2/micron_per_pixel, 3/micron_per_pixel)
+
     im = im[0][:-64]
 
     # Locate and refine circles
-    circle_finder = analysis.CircleFinder(im)
-    circle_finder.locate_hough_circles()
-
-    # Show result for manual checking
-    f = circle_finder.user_check_fits()
+    f = analysis.locate_hough_circles(im, r_range=r_range)
 
     # Save fit images
     plot.save_hough_circles(f, im, path)
