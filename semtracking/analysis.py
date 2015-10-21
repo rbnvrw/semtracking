@@ -8,10 +8,35 @@ import numpy as np
 from scipy.spatial import cKDTree
 from scipy.interpolate import RectBivariateSpline
 import plot
-import matplotlib
+from skimage.morphology import disk
 
 # Store fits so that we can use it in event callback
 fits_for_user_check = pandas.DataFrame()
+
+
+def locate_circular_particles(image, sigma=2, r_range=(5, 40), n=200):
+    """
+    Locate & refine circles using hough transform
+    :param sigma:
+    :param r_range:
+    :param n:
+    :return:
+    """
+    image = normalize_image(image)
+    f = find_hough_circles(image, sigma, r_range, n)
+    f = refine_circles(image, f)
+    return f
+
+
+def normalize_image(image):
+    """
+    Normalize image
+    :param image:
+    :return:
+    """
+    image = image.astype(float)
+    abs_max = np.max(np.abs(image))
+    return image / abs_max
 
 
 def find_hough_circles(image, sigma=2, r_range=(5, 40), n=200):
@@ -49,6 +74,68 @@ def find_hough_circles(image, sigma=2, r_range=(5, 40), n=200):
     f2 = f2[mask]
 
     return f2.reset_index(drop=True)
+
+
+def refine_circles(image, f, spline_order=3):
+    """
+    Make refinement to Hough circles by using the edge from light to dark
+    :param f:
+    :param spline_order:
+    :return:
+    """
+    assert image.ndim == 2
+    rs = f['r']
+    ycs = f['y']
+    xcs = f['x']
+
+    fit = pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
+    for r, yc, xc in zip(rs, ycs, xcs):
+        fit = pandas.concat(
+            [fit, refine_circle(image, r, yc, xc, spline_order)], ignore_index=True)
+
+    return fit
+
+
+def refine_circle(image, r, yc, xc, spline_order=3):
+    """
+    Make refinement to hough circles by using the edge from light to dark
+    :param r:
+    :param yc:
+    :param xc:
+    :param im:
+    :param n:
+    :param spline_order:
+    :return:
+    """
+    n = int(2 * np.pi * np.sqrt(r ** 2))
+
+    rad_range = (-r, r)
+
+    # Get intensity in spline representation
+    intensity, (x, y, step_x, step_y) = get_intensity_interpolation(image, r, xc, yc, n, rad_range, spline_order)
+
+    # mean intensity
+    mean_intensity = np.mean(image)
+
+    # First check if intensity is high enough for this to be a particle
+    mean_particle_intensity = np.mean(intensity)
+
+    if mean_particle_intensity < mean_intensity:
+        return pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
+
+    # Get points with max negative slope
+    max_slopes = get_max_slopes(intensity)
+
+    if len(max_slopes) == 0:
+        return pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
+
+    # Calculate new circle coordinates
+    coord_new = spline_coords_to_normal(max_slopes, rad_range, x, y, step_x, step_y)
+
+    # Fit a circle to the calculated coordinates
+    fit = fit_circle(coord_new).reset_index()
+
+    return fit
 
 
 def get_intensity_interpolation(image, r, xc, yc, n, rad_range, spline_order=3):
@@ -95,76 +182,151 @@ def get_intensity_interpolation(image, r, xc, yc, n, rad_range, spline_order=3):
     return intensity, (x, y, step_x, step_y)
 
 
-def refine_circle(image, r, yc, xc, spline_order=3):
+def flatten_multi_columns(col, sep='_'):
     """
-    Make refinement to hough circles by using the edge from light to dark
+
+    :param col:
+    :param sep:
+    :return:
+    """
+    if not type(col) is tuple:
+        return col
+    else:
+        new_col = ''
+        for leveli, level in enumerate(col):
+            if not level == '':
+                if not leveli == 0:
+                    new_col += sep
+                new_col += level
+        return new_col
+
+
+def merge_points_same_index(data):
+    """
+
+    :param data:
+    :return:
+    """
+    grouped = data.groupby(by=data.index)
+
+    merged_data = grouped.aggregate([np.mean])
+    merged_data.columns = merged_data.columns.map(flatten_multi_columns)
+
+    return merged_data
+
+
+def get_max_slopes(intensity):
+    """
+    Get positions with maximum negative slope
+    :param intensity:
+    :return:
+    """
+    # Find edges
+    intensity = normalize_image(intensity)
+    edges = skimage.filters.rank.gradient(intensity, disk(intensity.shape[1] / 10.0))
+
+    # Find local maxima
+    local_maxes = skimage.feature.peak_local_max(edges, min_distance=1, threshold_rel=0.7, exclude_border=True)
+
+    # Create dataframe of x values, indexing by y and take mean for points with same y
+    local_maxes_df = pandas.DataFrame(data=local_maxes[:, 1], index=local_maxes[:, 0], columns=['x'])
+    local_maxes_df = merge_points_same_index(local_maxes_df)
+
+    # Generate index of all y values of intensity array
+    index = np.arange(0, intensity.shape[0], 1)
+
+    # Reindex with all y values, filling with NaN's
+    local_maxes_df = local_maxes_df.reindex(index, fill_value=np.nan)
+
+    # Try to interpolate missing x values
+    local_maxes_df = local_maxes_df.interpolate()
+
+    # Fill with mean for the values where interpolation fails
+    local_maxes_df = local_maxes_df.fillna(np.mean(local_maxes_df))
+
+    return local_maxes_df['x_mean'].tolist()
+
+
+def spline_coords_to_normal(max_slopes, rad_range, x, y, step_x, step_y):
+    """
+    Calculate normal coordinates from spline representation coordinates
+    :param max_slopes:
+    :param rad_range:
+    :param x:
+    :param y:
+    :param step_x:
+    :param step_y:
+    :return:
+    """
+    r_dev = max_slopes + rad_range[0] - 0.5
+    x_new = (x + r_dev * step_x)
+    y_new = (y + r_dev * step_y)
+    coord_new = np.vstack([x_new, y_new]).T
+
+    return coord_new
+
+
+def fit_circle(features):
+    """
+     From x, y points, returns an algebraic fit of a circle
+    (not optimal least squares, but very fast)
+    :param features:
     :param r:
     :param yc:
     :param xc:
-    :param im:
-    :param n:
-    :param spline_order:
-    :return:
+    :return: returns center, radius and rms deviation from fitted
     """
-    n = int(2 * np.pi * np.sqrt(r ** 2))
+    # Get x,y
+    x = features[:, 0]
+    y = features[:, 1]
 
-    rad_range = (-r, r)
+    # coordinates of the barycenter
+    x_m = np.mean(x)
+    y_m = np.mean(y)
 
-    # Get intensity in spline representation
-    intensity, (x, y, step_x, step_y) = get_intensity_interpolation(image, r, xc, yc, n, rad_range, spline_order)
+    # calculation of the reduced coordinates
+    u = x - x_m
+    v = y - y_m
 
-    # mean intensity
-    mean_intensity = np.mean(image)
+    # linear system defining the center in reduced coordinates (uc, vc):
+    #    Suu * uc +  Suv * vc = (Suuu + Suvv)/2
+    #    Suv * uc +  Svv * vc = (Suuv + Svvv)/2
+    s_uv = np.sum(u * v)
+    s_uu = np.sum(u ** 2)
+    s_vv = np.sum(v ** 2)
+    s_uuv = np.sum(u ** 2 * v)
+    s_uvv = np.sum(u * v ** 2)
+    s_uuu = np.sum(u ** 3)
+    s_vvv = np.sum(v ** 3)
 
-    # First check if intensity is high enough for this to be a particle
-    mean_particle_intensity = np.mean(intensity)
-
-    if mean_particle_intensity < mean_intensity:
+    # Solving the linear system
+    a = np.array([[s_uu, s_uv], [s_uv, s_vv]])
+    b = np.array([s_uuu + s_uvv, s_vvv + s_uuv]) / 2.0
+    try:
+        solution, _, _, _ = np.linalg.lstsq(a, b)
+    except LinAlgError:
         return pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
 
-    # Get points with max negative slope
-    max_neg_slopes = get_max_neg_slopes(intensity)
+    # Calculate new centers
+    uc = solution[0]
+    vc = solution[1]
 
-    # Calculate new circle coordinates
-    coord_new = spline_coords_to_normal(max_neg_slopes, rad_range, x, y, step_x, step_y)
+    xc_1 = x_m + uc
+    yc_1 = y_m + vc
 
-    # Fit a circle to the calculated coordinates
-    fit = fit_circle(coord_new, r, yc, xc)
+    # Calculation of all distances from the center (xc_1, yc_1)
+    ri_1 = np.sqrt((x - xc_1) ** 2 + (y - yc_1) ** 2)
+    r_1 = np.mean(ri_1)
+    square_deviation = np.mean((ri_1 - r_1) ** 2)
 
-    return fit
+    # Check if dev is not too high
+    if square_deviation/r_1 > 0.1:
+        return pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
 
-
-def refine_circles(image, f, spline_order=3):
-    """
-    Make refinement to Hough circles by using the edge from light to dark
-    :param f:
-    :param spline_order:
-    :return:
-    """
-    assert image.ndim == 2
-    rs = f['r']
-    ycs = f['y']
-    xcs = f['x']
-
-    fit = pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
-    for r, yc, xc in zip(rs, ycs, xcs):
-        fit = pandas.concat(
-            [fit, refine_circle(image, r, yc, xc, spline_order)], ignore_index=True)
+    data = {'r': [r_1], 'y': [yc_1], 'x': [xc_1], 'dev': [square_deviation]}
+    fit = pandas.DataFrame(data)
 
     return fit
-
-
-def locate_hough_circles(image, sigma=2, r_range=(5, 40), n=200):
-    """
-    Locate & refine circles using hough transform
-    :param sigma:
-    :param r_range:
-    :param n:
-    :return:
-    """
-    f = find_hough_circles(image, sigma, r_range, n)
-    f = refine_circles(image, f)
-    return f
 
 
 def on_pick(event):
@@ -214,25 +376,6 @@ def user_check_fits(filename, image, micron_per_pixel):
     return fits_for_user_check
 
 
-def spline_coords_to_normal(max_neg_slopes, rad_range, x, y, step_x, step_y):
-    """
-    Calculate normal coordinates from spline representation coordinates
-    :param max_neg_slopes:
-    :param rad_range:
-    :param x:
-    :param y:
-    :param step_x:
-    :param step_y:
-    :return:
-    """
-    r_dev = max_neg_slopes + rad_range[0] + 0.5
-    x_new = (x + r_dev * step_x)
-    y_new = (y + r_dev * step_y)
-    coord_new = np.vstack([y_new, x_new]).T
-
-    return coord_new
-
-
 def eliminate_duplicates(f, separation, pos_columns, mass_column):
     """
     Eliminate duplicate circles
@@ -264,119 +407,3 @@ def eliminate_duplicates(f, separation, pos_columns, mass_column):
             to_drop.append(pair[dimmer])
         result.drop(to_drop, inplace=True)
     return result
-
-
-def remove_outlier_points(features, r, yc, xc):
-    """
-    Remove outliers that are not on the circle
-    :param features:
-    :param r:
-    :param yc:
-    :param xc:
-    :return:
-    """
-    x = features[:, 1]
-    y = features[:, 0]
-
-    # Remove points farther than 1.2 r from the center
-    mask = np.sqrt((x - xc) ** 2 + (y - yc) ** 2) <= 1.2 * r
-
-    features = np.vstack([y, x]).T
-
-    # Apply the mask
-    features = features[mask]
-
-    return features
-
-
-def fit_circle(features, r, yc, xc):
-    """
-     From x, y points, returns an algebraic fit of a circle
-    (not optimal least squares, but very fast)
-    :param features:
-    :param r:
-    :param yc:
-    :param xc:
-    :return: returns center, radius and rms deviation from fitted
-    """
-    # remove points that are clearly not on circle
-    features = remove_outlier_points(features, r, yc, xc)
-
-    # Get x,y
-    x = features[:, 1]
-    y = features[:, 0]
-
-    # coordinates of the barycenter
-    x_m = np.mean(x)
-    y_m = np.mean(y)
-
-    # calculation of the reduced coordinates
-    u = x - x_m
-    v = y - y_m
-
-    # linear system defining the center in reduced coordinates (uc, vc):
-    #    Suu * uc +  Suv * vc = (Suuu + Suvv)/2
-    #    Suv * uc +  Svv * vc = (Suuv + Svvv)/2
-    s_uv = np.sum(u * v)
-    s_uu = np.sum(u ** 2)
-    s_vv = np.sum(v ** 2)
-    s_uuv = np.sum(u ** 2 * v)
-    s_uvv = np.sum(u * v ** 2)
-    s_uuu = np.sum(u ** 3)
-    s_vvv = np.sum(v ** 3)
-
-    # Solving the linear system
-    a = np.array([[s_uu, s_uv], [s_uv, s_vv]])
-    b = np.array([s_uuu + s_uvv, s_vvv + s_uuv]) / 2.0
-    try:
-        solution, _, _, _ = np.linalg.lstsq(a, b)
-    except LinAlgError:
-        return pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
-
-    # Calculate new centers
-    uc = solution[0]
-    vc = solution[1]
-
-    xc_1 = x_m + uc
-    yc_1 = y_m + vc
-
-    # Calculation of all distances from the center (xc_1, yc_1)
-    ri_1 = np.sqrt((x - xc_1) ** 2 + (y - yc_1) ** 2)
-    r_1 = np.mean(ri_1)
-    square_deviation = np.mean((ri_1 - r_1) ** 2)
-
-    data = {'r': [r_1], 'y': [yc_1], 'x': [xc_1], 'dev': [square_deviation]}
-    fit = pandas.DataFrame(data)
-
-    return fit
-
-
-def get_max_neg_slopes(intensity):
-    """
-    Get positions with maximum negative slope
-    :param intensity:
-    :return:
-    """
-    # take differential to see changes in intensity
-    intensity_diff = np.diff(intensity, 1)
-
-    # give larger weight to spots in the center, as this is only a refinement of the hough circle
-    threshold = np.min(intensity_diff) * 0.01
-    w = intensity_diff.shape[1] / 2.0
-    weights = [threshold * (w - abs(x)) if abs(x) < w / 2 else 0 for x in np.linspace(-w, w, intensity_diff.shape[1])]
-
-    # create weighted intensity difference array
-    weighted_intensity_diff = intensity_diff + weights
-
-    # find the minima
-    max_neg_slopes = np.argmin(weighted_intensity_diff, axis=1)
-
-    # Get mean/std dev
-    mean = np.mean(max_neg_slopes)
-    dev = np.std(max_neg_slopes)
-
-    # Remove outliers
-    mask = np.abs(max_neg_slopes - mean) > dev
-    max_neg_slopes[mask] = mean
-
-    return max_neg_slopes

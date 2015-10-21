@@ -1,5 +1,6 @@
 import pims
 import os
+import numpy as np
 from semtracking import util
 from semtracking import analysis
 from semtracking import report
@@ -19,6 +20,7 @@ for filename in util.gen_img_paths(directory):
     micron_per_pixel = im.calibration
 
     im = im[0][:-64]
+    im = np.flipud(im)
 
     # Report filename
     report_file = os.path.abspath(
@@ -40,7 +42,7 @@ for filename in util.gen_img_paths(directory):
     os.remove(fit_file)
 
     # Save fit images
-    plot.save_hough_circles(f, im, path)
+    plot.save_fits(f, im, path)
 
     # Generate data files and save
-    report.save_circles_to_csv(f, path, micron_per_pixel)
+    report.save_fits_to_csv(f, path, micron_per_pixel)

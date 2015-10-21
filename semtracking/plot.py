@@ -15,9 +15,41 @@ def plot_hough_circle(f, im):
                          cmap=plt.cm.gray)
 
     plt.imshow(im, **_imshow_style)
-    plt.gca().invert_yaxis()
     for i in f.index:
         plt.gca().add_patch(plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid'))
+    plt.show()
+    return plt.gca()
+
+
+def plot_circle_on_image(f, im):
+    """
+    Make a plot of the image and the found circles
+    :param f: Dataframe with x, y, r
+    :param im: Image
+    :return: The axis
+    """
+    plt.clf()
+    plt.cla()
+    _imshow_style = dict(origin='lower', interpolation='none',
+                         cmap=plt.cm.gray)
+    plt.imshow(im, **_imshow_style)
+    for i in f.index:
+        plt.gca().add_patch(
+            plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid', lw=0.3, label=i))
+    plt.show()
+    return plt.gca()
+
+
+def plot_circle(f):
+    """
+    Make a plot of the image and the found circles
+    :param f: Dataframe with x, y, r
+    :param im: Image
+    :return: The axis
+    """
+    for i in f.index:
+        plt.gca().add_patch(
+            plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid', lw=0.3, label=i))
     plt.show()
     return plt.gca()
 
@@ -35,9 +67,8 @@ def plot_fits_for_user_confirmation(f, im, pick_callback):
     plt.clf()
     plt.cla()
     plt.imshow(im, **_imshow_style)
-    plt.gca().invert_yaxis()
     for i in f.index:
-        circle = plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid',
+        circle = plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid', lw=0.3,
                             label=i)
 
         # Enable picking
@@ -65,7 +96,7 @@ def set_annotation_color(index, color):
         child.set_color(color)
 
 
-def save_hough_circles(f, im, filename, dpi=300, linewidth=0.3):
+def save_fits(f, im, filename, dpi=300, linewidth=0.3):
     """
     Save plot of image and Hough circles to a file in a subdirectory
     :param f: Dataframe with x, y, r
@@ -86,7 +117,6 @@ def save_hough_circles(f, im, filename, dpi=300, linewidth=0.3):
     plt.clf()
     plt.cla()
     plt.imshow(im, **_imshow_style)
-    plt.gca().invert_yaxis()
     for i in f.index:
         circle = plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid', lw=linewidth,
                             label=i)
@@ -121,3 +151,15 @@ def plot_scatter(x, y, im):
     """
     ax = plot_image(im)
     ax.scatter(x, y, c='r', s=20)
+
+
+def plot_scatter_and_fit(x, y, fit, im):
+    """
+    Overlay a scatter plot + fit on image
+    :param x:
+    :param y:
+    :param im:
+    """
+    ax = plot_image(im)
+    ax.scatter(x, y, c='r', s=20)
+    plot_circle(fit)
