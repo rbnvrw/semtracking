@@ -32,3 +32,4 @@ for filename in util.gen_img_paths(directory):
 
     # Generate data files and save
     report.save_circles_to_csv(f, path, micron_per_pixel)
+    report.save_circles_to_csv_grouped(f, path, micron_per_pixel)

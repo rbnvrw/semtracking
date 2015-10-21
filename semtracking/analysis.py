@@ -34,7 +34,7 @@ def normalize_image(image):
     :param image:
     :return:
     """
-    image = image.astype(float)
+    image = image.astype(np.float64)
     abs_max = np.max(np.abs(image))
     return image / abs_max
 
@@ -107,7 +107,7 @@ def refine_circle(image, r, yc, xc, spline_order=3):
     :param spline_order:
     :return:
     """
-    n = int(2 * np.pi * np.sqrt(r ** 2))
+    n = int(np.round(2 * np.pi * np.sqrt(r ** 2)))
 
     rad_range = (-r, r)
 
@@ -227,6 +227,9 @@ def get_max_slopes(intensity):
 
     # Find local maxima
     local_maxes = skimage.feature.peak_local_max(edges, min_distance=1, threshold_rel=0.7, exclude_border=True)
+
+    if len(local_maxes) == 0:
+        return []
 
     # Create dataframe of x values, indexing by y and take mean for points with same y
     local_maxes_df = pandas.DataFrame(data=local_maxes[:, 1], index=local_maxes[:, 0], columns=['x'])

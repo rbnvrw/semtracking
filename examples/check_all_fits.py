@@ -5,6 +5,7 @@ from semtracking import util
 from semtracking import analysis
 from semtracking import report
 from semtracking import plot
+import re
 
 # Replace with the target directory
 directory = os.path.abspath(os.path.normpath("c:/Users/verweij/PycharmProjects/testfiles/"))
@@ -36,6 +37,13 @@ for filename in util.gen_img_paths(directory):
     os.remove(summary_file)
     os.remove(report_file)
 
+    # Paths
+    file_path_grouped = os.path.abspath(os.path.normpath(directory + os.path.sep + re.sub("_\d+$", "", filename)))
+    report_file_grouped = file_path_grouped + '_grouped_report.csv'
+    summary_file_grouped = file_path_grouped + '_grouped_summary.csv'
+    os.remove(report_file_grouped)
+    os.remove(summary_file_grouped)
+
     # Remove old fit .tif file
     fits_directory = os.path.abspath(os.path.normpath(directory + os.path.sep + 'fits'))
     fit_file = os.path.abspath(os.path.normpath(fits_directory + os.path.sep + filename)) + '_fit.tif'
@@ -45,4 +53,5 @@ for filename in util.gen_img_paths(directory):
     plot.save_fits(f, im, path)
 
     # Generate data files and save
-    report.save_fits_to_csv(f, path, micron_per_pixel)
+    report.save_circles_to_csv(f, path, micron_per_pixel)
+    report.save_circles_to_csv_grouped(f, path, micron_per_pixel)
