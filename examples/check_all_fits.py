@@ -38,7 +38,8 @@ for filename in util.gen_img_paths(directory):
     os.remove(report_file)
 
     # Paths
-    file_path_grouped = os.path.abspath(os.path.normpath(directory + os.path.sep + re.sub("_\d+$", "", filename)))
+    file_path_grouped = os.path.abspath(
+        os.path.normpath(directory + os.path.sep + 'report' + os.path.sep + re.sub("_\d+$", "", filename)))
     report_file_grouped = file_path_grouped + '_grouped_report.csv'
     summary_file_grouped = file_path_grouped + '_grouped_summary.csv'
     os.remove(report_file_grouped)
