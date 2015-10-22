@@ -63,17 +63,17 @@ def find_hough_circles(image, sigma=2, r_range=(5, 40), n=200):
     f['mass'] = hough[indices]
 
     # Eliminate duplicates
-    r = f.r.median()
-    f2 = eliminate_duplicates(f, (r, r), ['y', 'x'], 'mass')
+    r = f.r.max()
+    f = eliminate_duplicates(f, r, ['y', 'x'], 'mass')
 
     # Eliminate circles outside the image
-    mask = ((f2['y'] - f2['r']) >= 0) & ((f2['x'] - f2['r']) >= 0) & (
-        (f2['y'] + f2['r']) <= image.shape[0]) & (
-               (f2['x'] + f2['r']) <= image.shape[1])
+    mask = ((f['y'] - f['r']) >= 0) & ((f['x'] - f['r']) >= 0) & (
+        (f['y'] + f['r']) <= image.shape[0]) & (
+               (f['x'] + f['r']) <= image.shape[1])
 
-    f2 = f2[mask]
+    f = f[mask]
 
-    return f2.reset_index(drop=True)
+    return f.reset_index(drop=True)
 
 
 def refine_circles(image, f, spline_order=3):
@@ -323,7 +323,7 @@ def fit_circle(features):
     square_deviation = np.mean((ri_1 - r_1) ** 2)
 
     # Check if dev is not too high
-    if square_deviation/r_1 > 0.1:
+    if square_deviation / r_1 > 0.1:
         return pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
 
     data = {'r': [r_1], 'y': [yc_1], 'x': [xc_1], 'dev': [square_deviation]}
@@ -388,13 +388,13 @@ def eliminate_duplicates(f, separation, pos_columns, mass_column):
     :param mass_column:
     :return:
     """
-    result = f.copy()
+    result = f.drop_duplicates().reset_index(drop=True)
     while True:
         # Rescale positions, so that pairs are identified below a distance
         # of 1. Do so every iteration (room for improvement?)
-        positions = result[pos_columns].values / list(separation)
+        positions = result[pos_columns].values
         mass = result[mass_column].values
-        duplicates = cKDTree(positions, 30).query_pairs(1.5)
+        duplicates = cKDTree(positions, 30).query_pairs(3*separation)
         if len(duplicates) == 0:
             break
         to_drop = []
