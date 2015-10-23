@@ -62,9 +62,9 @@ def find_hough_circles(image, sigma=2, r_range=(5, 40), n=200):
     f['r'] += r_range[0]
     f['mass'] = hough[indices]
 
-    # Eliminate duplicates
+    # Eliminate duplicates, but first keep touching ones
     r = f.r.max()
-    f = eliminate_duplicates(f, r, ['y', 'x'], 'mass')
+    f = eliminate_duplicates(f, 0.5 * r, ['y', 'x'], 'mass')
 
     # Eliminate circles outside the image
     mask = ((f['y'] - f['r']) >= 0) & ((f['x'] - f['r']) >= 0) & (
@@ -182,7 +182,7 @@ def get_intensity_interpolation(image, r, xc, yc, n, rad_range, spline_order=3):
     return intensity, (x, y, step_x, step_y)
 
 
-def flatten_multi_columns(col, sep='_'):
+def flatten_multi_columns(col):
     """
 
     :param col:
@@ -192,13 +192,7 @@ def flatten_multi_columns(col, sep='_'):
     if not type(col) is tuple:
         return col
     else:
-        new_col = ''
-        for leveli, level in enumerate(col):
-            if not level == '':
-                if not leveli == 0:
-                    new_col += sep
-                new_col += level
-        return new_col
+        return col[0]
 
 
 def merge_points_same_index(data):
@@ -207,6 +201,7 @@ def merge_points_same_index(data):
     :param data:
     :return:
     """
+    data.index = np.round(data.index)
     grouped = data.groupby(by=data.index)
 
     merged_data = grouped.aggregate([np.mean])
@@ -223,16 +218,27 @@ def get_max_slopes(intensity):
     """
     # Find edges
     intensity = normalize_image(intensity)
-    edges = skimage.filters.rank.gradient(intensity, disk(intensity.shape[1] / 10.0))
+    edges = skimage.filters.rank.gradient(intensity, disk(1.0))
 
     # Find local maxima
-    local_maxes = skimage.feature.peak_local_max(edges, min_distance=1, threshold_rel=0.7, exclude_border=True)
+    local_maxes = skimage.feature.peak_local_max(edges, min_distance=1, threshold_rel=0.4, exclude_border=True)
 
     if len(local_maxes) == 0:
         return []
 
+    # Detect subpixel corners
+    subpix_corners = skimage.feature.corner_subpix(intensity, local_maxes)
+
     # Create dataframe of x values, indexing by y and take mean for points with same y
-    local_maxes_df = pandas.DataFrame(data=local_maxes[:, 1], index=local_maxes[:, 0], columns=['x'])
+    local_maxes_df = pandas.DataFrame(data={'x': subpix_corners[:, 1], 'y': subpix_corners[:, 0]})
+
+    # Try to interpolate missing x values
+    local_maxes_df = local_maxes_df.interpolate(method='nearest', axis=0).ffill().bfill()
+
+    # Set the index
+    local_maxes_df = local_maxes_df.set_index('y', drop=False, verify_integrity=False)
+
+    # Merge points with the same y value
     local_maxes_df = merge_points_same_index(local_maxes_df)
 
     # Generate index of all y values of intensity array
@@ -242,12 +248,9 @@ def get_max_slopes(intensity):
     local_maxes_df = local_maxes_df.reindex(index, fill_value=np.nan)
 
     # Try to interpolate missing x values
-    local_maxes_df = local_maxes_df.interpolate()
+    local_maxes_df = local_maxes_df.interpolate(method='nearest', axis=0).ffill().bfill()
 
-    # Fill with mean for the values where interpolation fails
-    local_maxes_df = local_maxes_df.fillna(np.mean(local_maxes_df))
-
-    return local_maxes_df['x_mean'].tolist()
+    return list(local_maxes_df['x'])
 
 
 def spline_coords_to_normal(max_slopes, rad_range, x, y, step_x, step_y):
@@ -261,7 +264,7 @@ def spline_coords_to_normal(max_slopes, rad_range, x, y, step_x, step_y):
     :param step_y:
     :return:
     """
-    r_dev = max_slopes + rad_range[0] - 0.5
+    r_dev = max_slopes - abs(rad_range[0])
     x_new = (x + r_dev * step_x)
     y_new = (y + r_dev * step_y)
     coord_new = np.vstack([x_new, y_new]).T
@@ -394,7 +397,7 @@ def eliminate_duplicates(f, separation, pos_columns, mass_column):
         # of 1. Do so every iteration (room for improvement?)
         positions = result[pos_columns].values
         mass = result[mass_column].values
-        duplicates = cKDTree(positions, 30).query_pairs(3*separation)
+        duplicates = cKDTree(positions, 30).query_pairs(3 * separation)
         if len(duplicates) == 0:
             break
         to_drop = []
