@@ -8,13 +8,17 @@ import numpy as np
 from scipy.spatial import cKDTree
 from scipy.interpolate import RectBivariateSpline
 import plot
-from skimage.morphology import disk
+from skimage.morphology import disk, closing
+from skimage.filters import threshold_otsu
+from skimage.segmentation import clear_border
+from skimage.measure import label
+from skimage.measure import regionprops
 
 # Store fits so that we can use it in event callback
 fits_for_user_check = pandas.DataFrame()
 
 
-def locate_circular_particles(image, sigma=2, r_range=(5, 40), n=200):
+def locate_circular_particles(image, sigma=2, n=200):
     """
     Locate & refine circles using hough transform
     :param sigma:
@@ -23,6 +27,8 @@ def locate_circular_particles(image, sigma=2, r_range=(5, 40), n=200):
     :return:
     """
     image = normalize_image(image)
+    guessed_r = guess_average_radius(image)
+    r_range = (guessed_r / 3, guessed_r * 3)
     f = find_hough_circles(image, sigma, r_range, n)
     f = refine_circles(image, f)
     return f
@@ -37,6 +43,25 @@ def normalize_image(image):
     image = image.astype(np.float64)
     abs_max = np.max(np.abs(image))
     return image / abs_max
+
+
+def guess_average_radius(image):
+    thresh = threshold_otsu(image)
+    bw = closing(image > thresh, disk(3))
+
+    # remove artifacts connected to image border
+    cleared = bw.copy()
+    clear_border(cleared)
+
+    # label image regions
+    label_image = label(cleared)
+    borders = np.logical_xor(bw, cleared)
+    label_image[borders] = -1
+
+    radii = [r.equivalent_diameter/2.0 for r in regionprops(label_image)]
+    average_r = np.mean(radii)
+
+    return average_r
 
 
 def find_hough_circles(image, sigma=2, r_range=(5, 40), n=200):

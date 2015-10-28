@@ -29,4 +29,4 @@ setup_parameters = dict(
     long_description=read('README.md'),
 )
 
-setup(**setup_parameters, requires=['scipy', 'numpy', 'pandas', 'matplotlib', 'pims'])
+setup(**setup_parameters, requires=['scipy', 'numpy', 'pandas', 'matplotlib', 'pims', 'nose'])

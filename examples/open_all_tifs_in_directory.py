@@ -19,13 +19,11 @@ for filename in util.gen_img_paths(directory):
     # Set scale
     micron_per_pixel = im.calibration
 
-    r_range = (0.2/micron_per_pixel, 3/micron_per_pixel)
-
     im = im[0][:-64]
     im = np.flipud(im)
 
     # Locate and refine circles
-    f = analysis.locate_circular_particles(im, r_range=r_range)
+    f = analysis.locate_circular_particles(im)
 
     # Save fit images
     plot.save_fits(f, im, path)
