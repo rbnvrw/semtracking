@@ -41,7 +41,7 @@ class TestFindParticles(unittest.TestCase):
 
         coords = self.image.coords
         coords_df = DataFrame(data=coords, columns=['y', 'x'])
-        coords_df = self.sort_dataframe(result, ['x', 'y'])
+        coords_df = self.sort_dataframe(coords_df, ['x', 'y'])
 
         assert_allclose(result, coords_df, rtol=1e-3, err_msg='Hough transform not finding all particles.')
 
