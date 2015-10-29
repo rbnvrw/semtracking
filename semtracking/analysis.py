@@ -58,7 +58,7 @@ def guess_average_radius(image):
     borders = np.logical_xor(bw, cleared)
     label_image[borders] = -1
 
-    radii = [r.equivalent_diameter/2.0 for r in regionprops(label_image)]
+    radii = [r.equivalent_diameter / 2.0 for r in regionprops(label_image)]
     average_r = np.mean(radii)
 
     return average_r
@@ -243,10 +243,10 @@ def get_max_slopes(intensity):
     """
     # Find edges
     intensity = normalize_image(intensity)
-    edges = skimage.filters.rank.gradient(intensity, disk(1.0))
+    gx, gy = np.gradient(intensity)
 
     # Find local maxima
-    local_maxes = skimage.feature.peak_local_max(edges, min_distance=1, threshold_rel=0.4, exclude_border=True)
+    local_maxes = skimage.feature.peak_local_max(gx, min_distance=1, threshold_rel=0.4, exclude_border=True)
 
     if len(local_maxes) == 0:
         return []
@@ -274,6 +274,11 @@ def get_max_slopes(intensity):
 
     # Try to interpolate missing x values
     local_maxes_df = local_maxes_df.interpolate(method='nearest', axis=0).ffill().bfill()
+
+    # Remove outlier x's
+    mean_x = np.mean(local_maxes_df['x'])
+    mask = np.abs(local_maxes_df['x'] - mean_x) > mean_x*0.3
+    local_maxes_df[mask] = mean_x
 
     return list(local_maxes_df['x'])
 
