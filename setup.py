@@ -23,7 +23,7 @@ setup_parameters = dict(
     author_email="rbnvrw@gmail.com",
     url="https://bitbucket.org/softmatters/semtracking",
     install_requires=['numpy>=1.7', 'scipy>=0.12', 'six>=1.8',
-                      'pandas>=0.12', 'pims',
+                      'pandas>=0.12', 'pims>=0.3.2rc2',
                       'pyyaml', 'matplotlib', 'trackpy'],
     packages=['semtracking'],
     long_description=read('README.md'),
