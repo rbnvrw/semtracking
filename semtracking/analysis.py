@@ -149,7 +149,7 @@ def refine_circle(image, r, yc, xc, spline_order=3):
         return pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
 
     # Get points with max negative slope
-    max_slopes = get_max_slopes(intensity)
+    max_slopes = find_edge(intensity)
 
     if len(max_slopes) == 0:
         return pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
@@ -235,7 +235,7 @@ def merge_points_same_index(data):
     return merged_data
 
 
-def get_max_slopes(intensity):
+def find_edge(intensity):
     """
     Get positions with maximum negative slope
     :param intensity:
@@ -243,44 +243,19 @@ def get_max_slopes(intensity):
     """
     # Find edges
     intensity = normalize_image(intensity)
-    gx, gy = np.gradient(intensity)
 
-    # Find local maxima
-    local_maxes = skimage.feature.peak_local_max(gx, min_distance=1, threshold_rel=0.4, exclude_border=True)
+    # Edge detection
+    edges = skimage.filters.scharr(intensity)
 
-    if len(local_maxes) == 0:
-        return []
+    # Find x of maximum values
+    edge_coords = np.argmax(edges, axis=1)
 
-    # Detect subpixel corners
-    subpix_corners = skimage.feature.corner_subpix(intensity, local_maxes)
+    # Take care of image borders
+    mean_x = np.mean(edge_coords)
+    edge_coords[0] = mean_x
+    edge_coords[-1] = mean_x
 
-    # Create dataframe of x values, indexing by y and take mean for points with same y
-    local_maxes_df = pandas.DataFrame(data={'x': subpix_corners[:, 1], 'y': subpix_corners[:, 0]})
-
-    # Try to interpolate missing x values
-    local_maxes_df = local_maxes_df.interpolate(method='nearest', axis=0).ffill().bfill()
-
-    # Set the index
-    local_maxes_df = local_maxes_df.set_index('y', drop=False, verify_integrity=False)
-
-    # Merge points with the same y value
-    local_maxes_df = merge_points_same_index(local_maxes_df)
-
-    # Generate index of all y values of intensity array
-    index = np.arange(0, intensity.shape[0], 1)
-
-    # Reindex with all y values, filling with NaN's
-    local_maxes_df = local_maxes_df.reindex(index, fill_value=np.nan)
-
-    # Try to interpolate missing x values
-    local_maxes_df = local_maxes_df.interpolate(method='nearest', axis=0).ffill().bfill()
-
-    # Remove outlier x's
-    mean_x = np.mean(local_maxes_df['x'])
-    mask = np.abs(local_maxes_df['x'] - mean_x) > mean_x*0.3
-    local_maxes_df[mask] = mean_x
-
-    return list(local_maxes_df['x'])
+    return edge_coords
 
 
 def spline_coords_to_normal(max_slopes, rad_range, x, y, step_x, step_y):

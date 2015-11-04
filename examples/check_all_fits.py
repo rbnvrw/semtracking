@@ -1,4 +1,4 @@
-import pims.bioformats as bf
+import pims
 import os
 import numpy as np
 from semtracking import util
@@ -15,7 +15,7 @@ for filename in util.gen_img_paths(directory):
     path = os.path.join(directory, filename)
 
     # Open with Bioformats
-    im = bf.BioformatsReader(path + '.tif')
+    im = pims.Bioformats(path + '.tif')
 
     # Set scale
     micron_per_pixel = im.calibration

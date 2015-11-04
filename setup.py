@@ -22,11 +22,11 @@ setup_parameters = dict(
     author="Soft Matter",
     author_email="rbnvrw@gmail.com",
     url="https://bitbucket.org/softmatters/semtracking",
-    install_requires=['numpy>=1.7', 'scipy>=0.12', 'six>=1.8',
-                      'pandas>=0.12', 'pims>=0.3.2rc2',
-                      'pyyaml', 'matplotlib', 'trackpy'],
+    install_requires=['numpy', 'scipy', 'six',
+                      'pandas', 'pims', 'pims_nd2',
+                      'pyyaml', 'matplotlib', 'trackpy', 'nose'],
     packages=['semtracking'],
-    long_description=read('README.md'),
+    long_description=read('README.md')
 )
 
-setup(**setup_parameters, requires=['scipy', 'numpy', 'pandas', 'matplotlib', 'pims', 'nose'])
+setup(**setup_parameters)
