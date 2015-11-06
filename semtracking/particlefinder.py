@@ -199,8 +199,7 @@ class ParticleFinder:
 
         return intensity, (x, y, step_x, step_y)
 
-    @staticmethod
-    def check_intensity_interpolation(intensity):
+    def check_intensity_interpolation(self, intensity):
         """
         Check whether the intensity interpolation is bright on left, dark on right
         :rtype : bool
@@ -209,7 +208,8 @@ class ParticleFinder:
         """
         sum_first_column = np.sum(intensity[:, 0])
         sum_last_column = np.sum(intensity[:, -1])
-        return sum_first_column > sum_last_column
+        mean_sum = self.mean*intensity.shape[1]
+        return sum_first_column > max(mean_sum, 2*sum_last_column)
 
     @staticmethod
     def find_edge(intensity):

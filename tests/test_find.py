@@ -4,7 +4,7 @@ from numpy.testing import assert_allclose
 from semtracking import simulatedimage as si
 from semtracking import particlefinder as pf
 from pandas import DataFrame, Series
-
+from semtracking import plot
 
 class TestFindParticles(unittest.TestCase):
     def setUp(self):
