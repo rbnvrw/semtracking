@@ -1,9 +1,8 @@
 import unittest
 import numpy as np
-
 from numpy.testing import assert_allclose
 from semtracking import simulatedimage as si
-from semtracking import analysis as an
+from semtracking import particlefinder as pf
 from pandas import DataFrame, Series
 
 
@@ -13,7 +12,7 @@ class TestFindParticles(unittest.TestCase):
         Setup test image
         """
         self.number = 100
-        self.radius = 15
+        self.radius = 15.0
         self.image = self.generate_image()
 
     def generate_image(self):
@@ -66,44 +65,16 @@ class TestFindParticles(unittest.TestCase):
         """
         assert_allclose(np.sort(a), np.sort(b), rtol=rtol, err_msg=err_msg)
 
-    def test_guess_average_radius(self):
+    def test_locate_particles(self):
         """
-        Test guessing of average radius
-        """
-        generated_image = self.image()
-
-        radius = an.guess_average_radius(generated_image)
-
-        self.assertAlmostEqual(self.radius, radius, places=0,
-                               msg='Guessed radius not accurate: guessed %d, actual %d' % (radius, self.radius))
-
-    def test_find_hough_circles(self):
-        """
-        Test finding of circles by Hough transform
+        Test locating particles
         """
         generated_image = self.image()
 
-        result = an.find_hough_circles(generated_image, sigma=2, r_range=(self.radius / 3, self.radius * 3),
-                                       n=self.number * 2)
+        finder = pf.ParticleFinder(generated_image)
+        fits = finder.locate_particles(self.number)
 
-        result.drop(['r', 'mass'], axis=1, inplace=True)
-        result = self.sort_dataframe(result, ['x', 'y'])
-
-        coords_df = self.get_coords_dataframe()
-
-        self.assert_allclose_sorted(result['x'], coords_df['x'], rtol=0.1, err_msg='Hough transform: x not accurate.')
-        self.assert_allclose_sorted(result['y'], coords_df['y'], rtol=0.1, err_msg='Hough transform: y not accurate.')
-
-    def test_refine_circles(self):
-        """
-        Test circle refinement function
-        """
-        generated_image = self.image()
-
-        result = an.find_hough_circles(generated_image, sigma=2, r_range=(self.radius / 3, self.radius * 3),
-                                       n=self.number * 2)
-        fits = an.refine_circles(generated_image, result)
-        fits.drop(['dev', 'index'], axis=1, inplace=True)
+        fits.drop(['dev'], axis=1, inplace=True)
 
         fits = self.sort_dataframe(fits, ['x', 'y'])
 
@@ -111,9 +82,9 @@ class TestFindParticles(unittest.TestCase):
         coords_df = self.sort_dataframe(coords_df, ['x', 'y'])
 
         self.assert_allclose_sorted(fits['r'], coords_df['r'], rtol=0.1,
-                                    err_msg='Circle refinement: radius not accurate.')
-        self.assert_allclose_sorted(fits['x'], coords_df['x'], rtol=0.1, err_msg='Circle refinement: x not accurate.')
-        self.assert_allclose_sorted(fits['y'], coords_df['y'], rtol=0.1, err_msg='Circle refinement: y not accurate.')
+                                    err_msg='Locate particles: radius not accurate.')
+        self.assert_allclose_sorted(fits['x'], coords_df['x'], rtol=0.1, err_msg='Locate particles: x not accurate.')
+        self.assert_allclose_sorted(fits['y'], coords_df['y'], rtol=0.1, err_msg='Locate particles: y not accurate.')
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@ import pims
 import os
 import numpy as np
 from semtracking import util
-from semtracking import analysis
+from semtracking import usercheckfits
 from semtracking import report
 from semtracking import plot
 import re
@@ -29,7 +29,8 @@ for filename in util.gen_img_paths(directory):
     if not os.path.isfile(report_file):
         continue
 
-    f = analysis.user_check_fits(report_file, im, micron_per_pixel)
+    checker = usercheckfits.UserCheckFits(report_file, micron_per_pixel)
+    f = checker.user_check_fits(im)
 
     # Remove old csv files
     summary_file = os.path.abspath(

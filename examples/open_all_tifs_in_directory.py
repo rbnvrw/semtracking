@@ -2,7 +2,7 @@ import pims
 import os
 import numpy as np
 from semtracking import util
-from semtracking import analysis
+from semtracking import particlefinder as pf
 from semtracking import report
 from semtracking import plot
 
@@ -19,11 +19,16 @@ for filename in util.gen_img_paths(directory):
     # Set scale
     micron_per_pixel = im.calibration
 
+    # Calculate size range
+    min_size = max(0.5/micron_per_pixel, 3)
+    max_size = min(1.5/micron_per_pixel, im.frame_shape[0]*0.5)
+
     im = im[0][:-64]
     im = np.flipud(im)
 
     # Locate and refine circles
-    f = analysis.locate_circular_particles(im)
+    finder = pf.ParticleFinder(im)
+    f = finder.locate_particles(size_range=(min_size, max_size))
 
     # Save fit images
     plot.save_fits(f, im, path)
