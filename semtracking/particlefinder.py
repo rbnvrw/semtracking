@@ -81,17 +81,17 @@ class ParticleFinder:
         else:
             return col[0]
 
-    @classmethod
     def merge_hough_same_values(self, data):
         """
 
         :param data:
         :return:
         """
+
+        # Drop real duplicates from dataframe
         data = data.reset_index()
         data['x_div'] = np.round(data['x'] / 10.0)
         data['y_div'] = np.round(data['y'] / 10.0)
-
         grouped = data.groupby(by=['x_div', 'y_div']).aggregate(lambda x: tuple(x))
         grouped = grouped.drop(['index'], axis=1).reset_index()
         for col in ['x', 'y', 'r', 'accum']:
@@ -119,6 +119,10 @@ class ParticleFinder:
                     dimmer = np.argmin(mass.take(pair, 0))
                 to_drop.append(pair[dimmer])
             grouped.drop(to_drop, inplace=True)
+
+        # Keep only brightest n circles
+        grouped = grouped.sort(columns=['accum'], ascending=False)
+        grouped = grouped.head(self.n)
 
         return grouped
 
