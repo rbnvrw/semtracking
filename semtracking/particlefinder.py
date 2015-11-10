@@ -4,6 +4,7 @@ import skimage.filters
 import scipy.interpolate
 import scipy.ndimage
 import scipy.spatial
+import scipy.optimize
 import numpy as np
 import pandas
 import plot
@@ -256,8 +257,8 @@ class ParticleFinder:
 
         return coords_df
 
-    @staticmethod
-    def spline_coords_to_cartesian(edge_coords, rad_range, x, y, step_x, step_y):
+    #@staticmethod
+    def spline_coords_to_cartesian(self,edge_coords, rad_range, x, y, step_x, step_y):
         """
         Calculate cartesian coordinates from spline representation coordinates
         :param max_slopes:
@@ -271,8 +272,8 @@ class ParticleFinder:
         r_dev = edge_coords.x - abs(rad_range[0])
         x_new = (x + r_dev * step_x)
         y_new = (y + r_dev * step_y)
-        coord_new = np.vstack([x_new, y_new]).T
-
+        data = {'x': list(x_new), 'y': list(y_new)}
+        coord_new = pandas.DataFrame(data)
         return coord_new
 
     @staticmethod
@@ -287,8 +288,8 @@ class ParticleFinder:
         :return: returns center, radius and rms deviation from fitted
         """
         # Get x,y
-        x = features[:, 0]
-        y = features[:, 1]
+        x = features.x
+        y = features.y
 
         # coordinates of the barycenter
         x_m = np.mean(x)
@@ -327,9 +328,9 @@ class ParticleFinder:
         # Calculation of all distances from the center (xc_1, yc_1)
         ri_1 = np.sqrt((x - xc_1) ** 2 + (y - yc_1) ** 2)
         r_1 = np.mean(ri_1)
-        square_deviation = np.mean((ri_1 - r_1) ** 2)
+        rms_dev = np.sqrt(np.mean((ri_1 - r_1) ** 2))
 
-        data = {'r': [r_1], 'y': [yc_1], 'x': [xc_1], 'dev': [square_deviation]}
+        data = {'r': [r_1], 'y': [yc_1], 'x': [xc_1], 'dev': [rms_dev]}
         fit = pandas.DataFrame(data)
 
         return fit

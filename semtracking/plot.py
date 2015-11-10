@@ -96,7 +96,7 @@ def set_annotation_color(index, color):
         child.set_color(color)
 
 
-def save_fits(f, im, filename, dpi=300, linewidth=0.3):
+def save_fits(f, im, filename, micron_per_pixel, dpi=300, linewidth=0.3):
     """
     Save plot of image and Hough circles to a file in a subdirectory
     :param f: Dataframe with x, y, r
@@ -118,6 +118,7 @@ def save_fits(f, im, filename, dpi=300, linewidth=0.3):
     plt.cla()
     plt.imshow(im, **_imshow_style)
     for i in f.index:
+        linewidth = max(linewidth, f.loc[i].dev/2.0)
         circle = plt.Circle((f.loc[i].x, f.loc[i].y), radius=f.loc[i].r, fc='None', ec='b', ls='solid', lw=linewidth,
                             label=i)
         plt.gca().add_patch(circle)

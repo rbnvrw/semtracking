@@ -31,7 +31,7 @@ for filename in util.gen_img_paths(directory):
     f = finder.locate_particles(size_range=(min_size, max_size))
 
     # Save fit images
-    plot.save_fits(f, im, path)
+    plot.save_fits(f, im, path, micron_per_pixel)
 
     # Generate data files and save
     report.save_circles_to_csv(f, path, micron_per_pixel)
