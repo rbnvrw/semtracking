@@ -118,7 +118,8 @@ def generate_summary(data_frame):
         'Dev. in radius (um)': [dev_r],
         'Mean diameter (um)': [2 * mean_r],
         'Dev. in diameter (um)': [2 * dev_r],
-        'Dev. in diameter (fraction)': [dev_r / mean_r]
+        'Dev. in diameter (fraction)': [dev_r / mean_r],
+        'Number of particles': [len(data_frame['r'])]
     }
     summary = DataFrame(data)
 
