@@ -40,6 +40,9 @@ def save_circles_to_csv_grouped(data_frame, filename, microns_per_pixel):
     :param filename:
     :param microns_per_pixel:
     """
+    if data_frame.empty:
+        return
+
     directory = setup_dir_is_not_exists(filename)
 
     filename = path.basename(filename)
@@ -77,6 +80,9 @@ def save_circles_to_csv(data_frame, filename, microns_per_pixel):
     :param filename:
     :param microns_per_pixel:
     """
+    if data_frame.empty:
+        return
+
     directory = setup_dir_is_not_exists(filename)
 
     filename = path.basename(filename)
