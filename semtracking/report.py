@@ -110,16 +110,20 @@ def generate_summary(data_frame):
     :param data_frame:
     :return:
     """
+    number = len(data_frame['r'])
     mean_r = numpy.mean(data_frame['r'])
-    dev_r = numpy.sqrt(numpy.dot(data_frame['dev'], data_frame['dev'])) / 2.0
+    error_r = numpy.sqrt(numpy.dot(data_frame['dev'], data_frame['dev'])) / float(number)
+    std_r = numpy.std(data_frame['r'])
 
     data = {
-        'Mean radius (um)': [mean_r],
-        'Dev. in radius (um)': [dev_r],
-        'Mean diameter (um)': [2 * mean_r],
-        'Dev. in diameter (um)': [2 * dev_r],
-        'Dev. in diameter (fraction)': [dev_r / mean_r],
-        'Number of particles': [len(data_frame['r'])]
+        'R, mean (um)': [mean_r],
+        'R, error (um)': [error_r],
+        'R, std (um)': [std_r],
+        'D, mean (um)': [2.0 * mean_r],
+        'D, error (um)': [2.0 * error_r],
+        'D, std (um)': [2.0 * std_r],
+        'D, std (fraction)': [std_r / mean_r],
+        '# particles': [number]
     }
     summary = DataFrame(data)
 

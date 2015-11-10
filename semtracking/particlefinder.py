@@ -91,24 +91,12 @@ class ParticleFinder:
         :param data:
         :return:
         """
-
-        # Drop real duplicates from dataframe
-        data = data.reset_index()
-        data['x_div'] = np.round(data['x'] / 10.0)
-        data['y_div'] = np.round(data['y'] / 10.0)
-        grouped = data.groupby(by=['x_div', 'y_div']).aggregate(lambda x: tuple(x))
-        grouped = grouped.drop(['index'], axis=1).reset_index()
-        for col in ['x', 'y', 'r', 'accum']:
-            grouped[col] = grouped.apply(lambda row: row[col][np.argmax(row['accum'])], axis=1)
-        grouped.columns = grouped.columns.map(self.flatten_multi_columns)
-        grouped = grouped.drop(['x_div', 'y_div'], axis=1).reset_index()
-
         while True:
             # Rescale positions, so that pairs are identified below a distance
             # of 1. Do so every iteration (room for improvement?)
-            positions = grouped[['x', 'y']].values
-            mass = grouped['accum'].values
-            duplicates = scipy.spatial.cKDTree(positions, 30).query_pairs(np.max(grouped['r']), p=2.0, eps=0.1)
+            positions = data[['x', 'y']].values
+            mass = data['accum'].values
+            duplicates = scipy.spatial.cKDTree(positions, 30).query_pairs(np.mean(data['r']), p=2.0, eps=0.1)
             if len(duplicates) == 0:
                 break
             to_drop = []
@@ -122,13 +110,13 @@ class ParticleFinder:
                 else:
                     dimmer = np.argmin(mass.take(pair, 0))
                 to_drop.append(pair[dimmer])
-            grouped.drop(to_drop, inplace=True)
+            data.drop(to_drop, inplace=True)
 
         # Keep only brightest n circles
-        grouped = grouped.sort(columns=['accum'], ascending=False)
-        grouped = grouped.head(self.n)
+        data = data.sort(columns=['accum'], ascending=False)
+        data = data.head(self.n)
 
-        return grouped
+        return data
 
     def find_circle(self, blob):
         """
