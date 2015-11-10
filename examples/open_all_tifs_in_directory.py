@@ -20,8 +20,8 @@ for filename in util.gen_img_paths(directory):
     micron_per_pixel = im.calibration
 
     # Calculate size range
-    min_size = max(0.5/micron_per_pixel, 3)
-    max_size = min(1.5/micron_per_pixel, im.frame_shape[0]*0.5)
+    min_size = max(0.3/micron_per_pixel, 3)
+    max_size = min(2.0/micron_per_pixel, im.frame_shape[0]*0.5)
 
     im = im[0][:-64]
     im = np.flipud(im)

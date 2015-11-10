@@ -1,5 +1,9 @@
-import skimage.feature, skimage.transform
-import scipy.interpolate, scipy.ndimage, scipy.spatial
+import skimage.feature
+import skimage.transform
+import skimage.filters
+import scipy.interpolate
+import scipy.ndimage
+import scipy.spatial
 import numpy as np
 import pandas
 import plot
@@ -53,7 +57,6 @@ class ParticleFinder:
 
         # Find edges
         edges = skimage.feature.canny(self.image)
-
         circles = skimage.transform.hough_circle(edges, radii)
 
         fit = pandas.DataFrame(columns=['r', 'y', 'x', 'accum'])
@@ -199,54 +202,59 @@ class ParticleFinder:
 
         return intensity, (x, y, step_x, step_y)
 
-    def check_intensity_interpolation(self, intensity):
+    @staticmethod
+    def create_binary_mask(intensity):
+        # Create binary mask
+        thresh = skimage.filters.threshold_otsu(intensity)
+        mask = intensity > thresh
+
+        # Fill holes in binary mask
+        mask = scipy.ndimage.morphology.binary_fill_holes(mask)
+
+        return mask
+
+    @classmethod
+    def check_intensity_interpolation(cls, intensity):
         """
         Check whether the intensity interpolation is bright on left, dark on right
         :rtype : bool
         :param intensity:
         :return:
         """
-        sum_first_column = np.sum(intensity[:, 0])
-        sum_last_column = np.sum(intensity[:, -1])
-        mean_sum = self.mean*intensity.shape[1]
-        return sum_first_column > max(mean_sum, 2*sum_last_column)
+        binary_mask = cls.create_binary_mask(intensity)
+        parts = np.array_split(binary_mask, 2, axis=1)
+        mean_left = np.mean(parts[0])
+        mean_right = np.mean(parts[1])
+        return mean_left > 0.8 and 0.2 > mean_right
 
-    @staticmethod
-    def find_edge(intensity):
+    @classmethod
+    def find_edge(cls, intensity):
         """
         Find the edge of the particle
         :rtype : pandas.DataFrame
         :param intensity:
         :return:
         """
-        # Divide image in two parts
-        left = intensity[:, 0:intensity.shape[1] / 2]
+        mask = cls.create_binary_mask(intensity)
 
-        # Calculate means
-        mean_left = np.mean(left)
-        std_left = np.std(left)
+        # Take last x coord of left list, first x coord of right list and take y
+        coords = [(([i for i, l in enumerate(row) if l][-1] + [j for j, r in enumerate(row) if not r][0]) / 2.0, y) for
+                  y, row in enumerate(mask) if True in row and False in row]
+        coords_df = pandas.DataFrame(columns=['x', 'y'], data=coords)
 
-        # Create binary mask
-        mask = intensity >= mean_left - 2 * std_left
-        # Fill holes in binary mask
-        mask = scipy.ndimage.morphology.binary_fill_holes(mask)
+        # Set the index
+        coords_df = coords_df.set_index('y', drop=False, verify_integrity=False)
 
-        coords = pandas.DataFrame(columns=['x', 'y'])
-        for y, row in enumerate(mask):
-            indices_left = [i for i, col in enumerate(row) if col]
-            indices_right = [i for i, col in enumerate(row) if not col]
+        # Generate index of all y values of intensity array
+        index = np.arange(0, intensity.shape[0], 1)
 
-            if len(indices_left) == 0 or len(indices_right) == 0:
-                average_x = np.nan
-            else:
-                average_x = (indices_left[-1] + indices_right[0]) / 2.0
+        # Reindex with all y values, filling with NaN's
+        coords_df = coords_df.reindex(index, fill_value=np.nan)
 
-            new_coords = pandas.DataFrame(data={'x': [average_x], 'y': [y]})
-            coords = pandas.concat([coords, new_coords], ignore_index=True)
+        # Try to interpolate missing x values
+        coords_df = coords_df.interpolate(method='nearest', axis=0).ffill().bfill()
 
-        coords.fillna(np.nanmean(coords.x), inplace=True)
-
-        return coords
+        return coords_df
 
     @staticmethod
     def spline_coords_to_cartesian(edge_coords, rad_range, x, y, step_x, step_y):
