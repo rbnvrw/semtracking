@@ -1,4 +1,4 @@
-from numpy import std, mean
+import numpy
 from pandas import DataFrame
 import pandas as pd
 from os import path, makedirs, sep
@@ -104,8 +104,8 @@ def generate_summary(data_frame):
     :param data_frame:
     :return:
     """
-    mean_r = mean(data_frame['r'])
-    dev_r = std(data_frame['r'])
+    mean_r = numpy.mean(data_frame['r'])
+    dev_r = numpy.sqrt(numpy.dot(data_frame['dev'], data_frame['dev'])) / 2.0
 
     data = {
         'Mean radius (um)': [mean_r],

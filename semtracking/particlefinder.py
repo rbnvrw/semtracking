@@ -151,6 +151,9 @@ class ParticleFinder:
         if np.isnan(edge_coords.x).any():
             return pandas.DataFrame(columns=['r', 'y', 'x', 'dev'])
 
+        # Set outliers to mean of rest of x coords
+        edge_coords = self.remove_outliers(edge_coords)
+
         # Convert to cartesian
         coords = self.spline_coords_to_cartesian(edge_coords, rad_range, x, y, step_x, step_y)
 
@@ -257,8 +260,23 @@ class ParticleFinder:
 
         return coords_df
 
-    #@staticmethod
-    def spline_coords_to_cartesian(self,edge_coords, rad_range, x, y, step_x, step_y):
+    @staticmethod
+    def remove_outliers(edge_coords):
+        """
+
+        :param edge_coords:
+        :return:
+        """
+        mean = np.mean(edge_coords.x)
+        comparison = 0.2 * mean
+        mask_outlier = abs(edge_coords.x - mean) > comparison
+        mask_no_outlier = abs(edge_coords.x - mean) <= comparison
+        mean_no_outlier = np.mean(edge_coords[mask_no_outlier].x)
+        edge_coords.ix[mask_outlier, 'x'] = mean_no_outlier
+        return edge_coords
+
+    @staticmethod
+    def spline_coords_to_cartesian(edge_coords, rad_range, x, y, step_x, step_y):
         """
         Calculate cartesian coordinates from spline representation coordinates
         :param max_slopes:
