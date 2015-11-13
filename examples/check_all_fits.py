@@ -35,7 +35,8 @@ for filename in util.gen_img_paths(directory):
     # Remove old csv files
     summary_file = os.path.abspath(
         os.path.normpath(directory + os.path.sep + 'report' + os.path.sep + filename + '_summary.csv'))
-    os.remove(summary_file)
+    if os.path.isfile(summary_file):
+        os.remove(summary_file)
     os.remove(report_file)
 
     # Paths
@@ -43,13 +44,16 @@ for filename in util.gen_img_paths(directory):
         os.path.normpath(directory + os.path.sep + 'report' + os.path.sep + re.sub("_\d+$", "", filename)))
     report_file_grouped = file_path_grouped + '_grouped_report.csv'
     summary_file_grouped = file_path_grouped + '_grouped_summary.csv'
-    os.remove(report_file_grouped)
-    os.remove(summary_file_grouped)
+    if os.path.isfile(report_file_grouped):
+        os.remove(report_file_grouped)
+    if os.path.isfile(summary_file_grouped):
+        os.remove(summary_file_grouped)
 
     # Remove old fit .tif file
     fits_directory = os.path.abspath(os.path.normpath(directory + os.path.sep + 'fits'))
     fit_file = os.path.abspath(os.path.normpath(fits_directory + os.path.sep + filename)) + '_fit.tif'
-    os.remove(fit_file)
+    if os.path.isfile(fit_file):
+        os.remove(fit_file)
 
     # Save fit images
     plot.save_fits(f, im, path)

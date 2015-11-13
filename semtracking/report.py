@@ -57,7 +57,7 @@ def save_circles_to_csv_grouped(data_frame, filename, microns_per_pixel):
     # Merge existing
     if path.isfile(report_file_grouped):
         existing_df = DataFrame.from_csv(report_file_grouped)
-        data_frame = pd.concat([data_frame, existing_df])
+        data_frame = pd.concat([data_frame, existing_df], ignore_index=True)
 
     # Delete summary
     if path.isfile(summary_file_grouped):
@@ -110,7 +110,7 @@ def generate_summary(data_frame):
     :param data_frame:
     :return:
     """
-    number = len(data_frame['r'])
+    number = len(data_frame.index)
     mean_r = numpy.mean(data_frame['r'])
     error_r = numpy.sqrt(numpy.dot(data_frame['dev'], data_frame['dev'])) / float(number)
     std_r = numpy.std(data_frame['r'])

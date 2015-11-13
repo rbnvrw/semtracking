@@ -81,7 +81,7 @@ def plot_fits_for_user_confirmation(f, im, pick_callback):
 
     plt.gca().set_title('Please check the result. Click on a circle to toggle removal. Close to confirm.')
     plt.gcf().canvas.mpl_connect('pick_event', pick_callback)
-    plt.show()
+    plt.show(block=True)
 
 
 def set_annotation_color(index, color):
@@ -96,7 +96,7 @@ def set_annotation_color(index, color):
         child.set_color(color)
 
 
-def save_fits(f, im, filename, micron_per_pixel, dpi=300, linewidth=0.3):
+def save_fits(f, im, filename, dpi=300, linewidth=0.3):
     """
     Save plot of image and Hough circles to a file in a subdirectory
     :param f: Dataframe with x, y, r

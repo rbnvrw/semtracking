@@ -11,25 +11,31 @@ class UserCheckFits:
         Let user manually check fits, removing them by clicking
         :return:
         """
-        self.fits_for_user_check = pandas.DataFrame.from_csv(filename)
+        UserCheckFits.fits_for_user_check = pandas.DataFrame.from_csv(filename)
 
         # Set scale in pixels
-        self.fits_for_user_check /= micron_per_pixel
+        UserCheckFits.fits_for_user_check /= micron_per_pixel
 
-        self.fits_for_user_check['remove'] = False
+        UserCheckFits.fits_for_user_check['remove'] = False
 
-    def user_check_fits(self, image):
-        plot.plot_fits_for_user_confirmation(self.fits_for_user_check, image, self.on_pick)
+    @staticmethod
+    def user_check_fits(image):
+        """
 
-        mask = (self.fits_for_user_check['remove'] == False)
-        fits_for_user_check = self.fits_for_user_check[mask]
+        :param image:
+        :return:
+        """
+        plot.plot_fits_for_user_confirmation(UserCheckFits.fits_for_user_check, image, UserCheckFits.on_pick)
 
-        fits_for_user_check.drop('remove', axis=1, inplace=True)
+        mask = (UserCheckFits.fits_for_user_check['remove'] == False)
+        UserCheckFits.fits_for_user_check = UserCheckFits.fits_for_user_check[mask]
+
+        UserCheckFits.fits_for_user_check.drop('remove', axis=1, inplace=True)
 
         # Update indices
-        self.fits_for_user_check.index = range(1, len(fits_for_user_check) + 1)
+        UserCheckFits.fits_for_user_check.reset_index(inplace=True)
 
-        return self.fits_for_user_check
+        return UserCheckFits.fits_for_user_check
 
     @classmethod
     def on_pick(cls, event):
@@ -40,13 +46,13 @@ class UserCheckFits:
         # Get index from label
         fit_number = int(event.artist.get_label())
 
-        if not cls.fits_for_user_check['remove'][fit_number]:
+        if not UserCheckFits.fits_for_user_check['remove'][fit_number]:
             event.artist.set_edgecolor('r')
             plot.set_annotation_color(fit_number, 'r')
-            cls.fits_for_user_check['remove'][fit_number] = True
+            UserCheckFits.fits_for_user_check.set_value(fit_number, 'remove', True)
         else:
             event.artist.set_edgecolor('b')
             plot.set_annotation_color(fit_number, 'b')
-            cls.fits_for_user_check['remove'][fit_number] = False
+            UserCheckFits.fits_for_user_check.set_value(fit_number, 'remove', False)
 
         event.canvas.draw()
