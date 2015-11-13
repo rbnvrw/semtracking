@@ -6,58 +6,68 @@ from semtracking import usercheckfits
 from semtracking import report
 from semtracking import plot
 import re
+import sys
 
-# Replace with the target directory
-directory = os.path.abspath(os.path.normpath("c:/Users/verweij/PycharmProjects/testfiles/"))
 
-# Open all .tif's in the directory
-for filename in util.gen_img_paths(directory):
-    path = os.path.join(directory, filename)
+def main(argv):
+    """
 
-    # Open with Bioformats
-    im = pims.Bioformats(path + '.tif')
+    :param argv:
+    """
+    directory = util.get_directory_from_command_line(argv, os.path.basename(__file__))
 
-    # Set scale
-    micron_per_pixel = im.calibration
+    # Open all .tif's in the directory
+    for filename in util.gen_img_paths(directory):
+        path = os.path.join(directory, filename)
 
-    im = im[0][:-64]
-    im = np.flipud(im)
+        # Open with Bioformats
+        im = pims.Bioformats(path + '.tif')
 
-    # Report filename
-    report_file = os.path.abspath(
-        os.path.normpath(directory + os.path.sep + 'report' + os.path.sep + filename + '_frame.csv'))
-    if not os.path.isfile(report_file):
-        continue
+        # Set scale
+        micron_per_pixel = im.calibration
 
-    checker = usercheckfits.UserCheckFits(report_file, micron_per_pixel)
-    f = checker.user_check_fits(im)
+        im = im[0][:-64]
+        im = np.flipud(im)
 
-    # Remove old csv files
-    summary_file = os.path.abspath(
-        os.path.normpath(directory + os.path.sep + 'report' + os.path.sep + filename + '_summary.csv'))
-    if os.path.isfile(summary_file):
-        os.remove(summary_file)
-    os.remove(report_file)
+        # Report filename
+        report_file = os.path.abspath(
+            os.path.normpath(directory + os.path.sep + 'report' + os.path.sep + filename + '_frame.csv'))
+        if not os.path.isfile(report_file):
+            continue
 
-    # Paths
-    file_path_grouped = os.path.abspath(
-        os.path.normpath(directory + os.path.sep + 'report' + os.path.sep + re.sub("_\d+$", "", filename)))
-    report_file_grouped = file_path_grouped + '_grouped_report.csv'
-    summary_file_grouped = file_path_grouped + '_grouped_summary.csv'
-    if os.path.isfile(report_file_grouped):
-        os.remove(report_file_grouped)
-    if os.path.isfile(summary_file_grouped):
-        os.remove(summary_file_grouped)
+        checker = usercheckfits.UserCheckFits(report_file, micron_per_pixel)
+        f = checker.user_check_fits(im)
 
-    # Remove old fit .tif file
-    fits_directory = os.path.abspath(os.path.normpath(directory + os.path.sep + 'fits'))
-    fit_file = os.path.abspath(os.path.normpath(fits_directory + os.path.sep + filename)) + '_fit.tif'
-    if os.path.isfile(fit_file):
-        os.remove(fit_file)
+        # Remove old csv files
+        summary_file = os.path.abspath(
+            os.path.normpath(directory + os.path.sep + 'report' + os.path.sep + filename + '_summary.csv'))
+        if os.path.isfile(summary_file):
+            os.remove(summary_file)
+        os.remove(report_file)
 
-    # Save fit images
-    plot.save_fits(f, im, path)
+        # Paths
+        file_path_grouped = os.path.abspath(
+            os.path.normpath(directory + os.path.sep + 'report' + os.path.sep + re.sub("_\d+$", "", filename)))
+        report_file_grouped = file_path_grouped + '_grouped_report.csv'
+        summary_file_grouped = file_path_grouped + '_grouped_summary.csv'
+        if os.path.isfile(report_file_grouped):
+            os.remove(report_file_grouped)
+        if os.path.isfile(summary_file_grouped):
+            os.remove(summary_file_grouped)
 
-    # Generate data files and save
-    report.save_circles_to_csv(f, path, micron_per_pixel)
-    report.save_circles_to_csv_grouped(f, path, micron_per_pixel)
+        # Remove old fit .tif file
+        fits_directory = os.path.abspath(os.path.normpath(directory + os.path.sep + 'fits'))
+        fit_file = os.path.abspath(os.path.normpath(fits_directory + os.path.sep + filename)) + '_fit.tif'
+        if os.path.isfile(fit_file):
+            os.remove(fit_file)
+
+        # Save fit images
+        plot.save_fits(f, im, path)
+
+        # Generate data files and save
+        report.save_circles_to_csv(f, path, micron_per_pixel)
+        report.save_circles_to_csv_grouped(f, path, micron_per_pixel)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
