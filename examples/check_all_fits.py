@@ -45,7 +45,7 @@ def main(argv):
             os.remove(summary_file)
         os.remove(report_file)
 
-        # Paths
+        # Remove old grouped files
         file_path_grouped = os.path.abspath(
             os.path.normpath(directory + os.path.sep + 'report' + os.path.sep + re.sub("_\d+$", "", filename)))
         report_file_grouped = file_path_grouped + '_grouped_report.csv'
@@ -66,7 +66,7 @@ def main(argv):
 
         # Generate data files and save
         report.save_circles_to_csv(f, path, micron_per_pixel)
-        report.save_circles_to_csv_grouped(f, path, micron_per_pixel)
+        report.save_circles_to_csv_grouped(f, path, micron_per_pixel, suffix='_grouped_checked')
 
 
 if __name__ == "__main__":

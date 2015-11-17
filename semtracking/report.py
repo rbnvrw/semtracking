@@ -33,7 +33,7 @@ def setup_dir_is_not_exists(filename):
     return directory
 
 
-def save_circles_to_csv_grouped(data_frame, filename, microns_per_pixel):
+def save_circles_to_csv_grouped(data_frame, filename, microns_per_pixel, suffix='_grouped'):
     """
 
     :param data_frame:
@@ -51,8 +51,8 @@ def save_circles_to_csv_grouped(data_frame, filename, microns_per_pixel):
 
     # Paths
     file_path_grouped = path.abspath(path.normpath(directory + sep + re.sub("_\d+$", "", filename)))
-    report_file_grouped = file_path_grouped + '_grouped_report.csv'
-    summary_file_grouped = file_path_grouped + '_grouped_summary.csv'
+    report_file_grouped = file_path_grouped + suffix + '_report.csv'
+    summary_file_grouped = file_path_grouped + suffix + '_summary.csv'
 
     # Merge existing
     if path.isfile(report_file_grouped):
