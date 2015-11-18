@@ -28,11 +28,12 @@ class ParticleFinder:
     def locate_particles(self, n=100, size_range=(5, 30)):
         """
         Find circular particles in the image
+        :param size_range:
         :rtype : pandas.DataFrame
         :param n:
         :return:
         """
-        self.n = n
+        self.n = int(np.round(n))
         self.size_range = size_range
         # 1. Detect blobs in image
         blobs = self.locate_circles()
@@ -113,7 +114,7 @@ class ParticleFinder:
             data.drop(to_drop, inplace=True)
 
         # Keep only brightest n circles
-        data = data.sort(columns=['accum'], ascending=False)
+        data = data.sort_values(by=['accum'], ascending=False)
         data = data.head(self.n)
 
         return data
