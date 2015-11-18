@@ -64,6 +64,8 @@ def plot_fits_for_user_confirmation(f, im, pick_callback):
     """
     _imshow_style = dict(origin='lower', interpolation='none',
                          cmap=plt.cm.gray)
+    figManager = plt.get_current_fig_manager()
+    figManager.window.showMaximized()
     plt.clf()
     plt.cla()
     plt.imshow(im, **_imshow_style)
