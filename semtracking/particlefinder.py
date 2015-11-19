@@ -11,8 +11,6 @@ import plot
 
 
 class ParticleFinder:
-    local_max_min_distance = 5
-
     def __init__(self, image):
         """
         Class for finding circular particles

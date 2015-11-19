@@ -1,33 +1,36 @@
-import pandas
+import os
 
+import pandas
 import numpy
 import matplotlib.pyplot as plt
+import sys
 
-from semtracking import particlefinder, simulatedimage
-
-errors = pandas.DataFrame(columns=['r', 'r_err', 'r_err_std', 'x_err', 'x_err_std', 'y_err', 'y_err_std'])
-radii = numpy.linspace(5, 30, 25)
-width = 1024
-height = 943
+from semtracking import particlefinder, simulatedimage, plot, util
 
 
 class TestImage:
-    def __init__(self, number, r):
+    def __init__(self, number, r, noise=0.3, shape=(1024, 943)):
         """
         Setup test image
+        :param number:
+        :param r:
+        :param noise:
+        :param shape:
         """
         self.number = number
         self.radius = r
-        self.image = self.generate_image()
+        self.image = self.generate_image(noise, shape)
 
-    def generate_image(self):
+    def generate_image(self, noise=0.3, shape=(1024, 943)):
         """
         Generate the test image
 
+        :param noise:
+        :param shape:
         :rtype : semtracking.SimulatedImage
         :return:
         """
-        image = simulatedimage.SimulatedImage(shape=(1024, 943), dtype=numpy.float, radius=self.radius, noise=0.3)
+        image = simulatedimage.SimulatedImage(shape=shape, dtype=numpy.float, radius=self.radius, noise=noise)
         image.draw_features(self.number, separation=3 * self.radius)
         return image
 
@@ -61,33 +64,66 @@ class TestImage:
         return coords_df
 
 
-for r in radii:
-    test = TestImage(height / r, r)
-    generated_image = test.image()
+def main(argv):
+    """
 
-    finder = particlefinder.ParticleFinder(generated_image)
-    fits = finder.locate_particles(test.number)
-    fits.drop(['dev'], axis=1, inplace=True)
-    fits = test.sort_dataframe(fits, ['x', 'y'])
+    :param argv:
+    """
+    directory = util.get_directory_from_command_line(argv, os.path.basename(__file__))
+    path = os.path.join(directory, 'error_plots', 'plot.png')
+    errors = pandas.DataFrame(columns=['r', 'num_diff', 'r_diff', 'x_diff', 'y_diff'])
+    radii = numpy.arange(5, 30, 1)
+    width = 1024
+    height = 943
+    runs = 10
 
-    coords_df = test.get_coords_dataframe(True)
-    coords_df = test.sort_dataframe(coords_df, ['x', 'y'])
+    for r in radii:
+        num = int(min([height / r, 100]))
+        for run in numpy.arange(1, runs, 1):
+            test = TestImage(num, r, noise=0.3, shape=(width, height))
+            generated_image = test.image()
 
-# Plot
-f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-ax1.set_xlabel('r')
-ax1.set_ylabel('r_fit / r')
-ax1.scatter(errors['r'], errors['r_err'])
-ax1.errorbar(errors['r'], errors['r_err'], yerr=errors['r_err_std'])
+            finder = particlefinder.ParticleFinder(generated_image)
+            fits = finder.locate_particles(n=test.number * 1.5, size_range=(
+                int(numpy.ceil(0.8 * min(radii))), int(numpy.ceil(1.2 * max(radii)))))
+            fits = test.sort_dataframe(fits, ['x', 'y'])
 
-ax2.set_xlabel('r')
-ax2.set_ylabel('x_fit / x')
-ax2.scatter(errors['r'], errors['x_err'])
-ax2.errorbar(errors['r'], errors['x_err'], yerr=errors['x_err_std'])
+            coords_df = test.get_coords_dataframe(True)
+            coords_df = test.sort_dataframe(coords_df, ['x', 'y'])
 
-ax3.set_xlabel('r')
-ax3.set_ylabel('y_fit / y')
-ax3.scatter(errors['r'], errors['y_err'])
-ax3.errorbar(errors['r'], errors['y_err'], yerr=errors['y_err_std'])
+            num_diff = (len(coords_df['r']) - len(fits['r'])) / len(coords_df['r'])
+            r_diff = (coords_df['r'] - fits['r']) / coords_df['r']
+            x_diff = (coords_df['x'] - fits['x']) / coords_df['x']
+            y_diff = (coords_df['y'] - fits['y']) / coords_df['y']
 
-plt.show()
+            errors = errors.append({
+                'r': r,
+                'num_diff': num_diff,
+                'r_diff': r_diff,
+                'x_diff': x_diff,
+                'y_diff': y_diff
+            }, ignore_index=True)
+
+    # Plot
+    f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+    ax1.set_xlabel('r')
+    ax1.set_ylabel('(n_r - n_f) / n_r')
+    ax1.scatter(errors['r'], errors['num_diff'])
+
+    ax2.set_xlabel('r')
+    ax2.set_ylabel('(r_r - r_f) / r_r')
+    ax2.scatter(errors['r'], errors['r_diff'])
+
+    ax3.set_xlabel('r')
+    ax3.set_ylabel('(x_r - x_f) / x_r')
+    ax3.scatter(errors['r'], errors['x_diff'])
+
+    ax4.set_xlabel('r')
+    ax4.set_ylabel('(y_r - y_f) / y_r')
+    ax4.scatter(errors['r'], errors['y_diff'])
+
+    plt.savefig(path)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
