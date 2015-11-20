@@ -45,7 +45,7 @@ class TestImage:
         """
         frame = frame.reindex_axis(sorted(frame.columns), axis=1)
         frame = frame.reset_index(drop=True)
-        frame = frame.sort_values(by=sort_columns)
+        frame = frame.sort(sort_columns)
         return frame.reset_index(drop=True)
 
     def get_coords_dataframe(self, add_r=False):
@@ -70,16 +70,18 @@ def main(argv):
     :param argv:
     """
     directory = util.get_directory_from_command_line(argv, os.path.basename(__file__))
-    path = os.path.join(directory, 'error_plots', 'plot.png')
-    errors = pandas.DataFrame(columns=['r', 'num_diff', 'r_diff', 'x_diff', 'y_diff'])
+    path = os.path.join(directory, 'plot.pdf')
+    errors = pandas.DataFrame(columns=['r', 'num_diff', 'r_diff', 'x_diff', 'y_diff', 'r_diff_std', 'x_diff_std', 'y_diff_std'])
     radii = numpy.arange(5, 30, 1)
     width = 1024
     height = 943
     runs = 10
 
     for r in radii:
-        num = int(min([height / r, 100]))
         for run in numpy.arange(1, runs, 1):
+            # Change number so each run is "random"
+            num = int(min([height / r, 100])+run)
+
             test = TestImage(num, r, noise=0.3, shape=(width, height))
             generated_image = test.image()
 
@@ -96,12 +98,18 @@ def main(argv):
             x_diff = (coords_df['x'] - fits['x']) / coords_df['x']
             y_diff = (coords_df['y'] - fits['y']) / coords_df['y']
 
+            if abs(num_diff) > 0:
+                plot.save_fits(fits, generated_image, os.path.join(directory, 'mismatch_'+str(r)+'_'+str(run)+'.tiff'))
+
             errors = errors.append({
                 'r': r,
                 'num_diff': num_diff,
-                'r_diff': r_diff,
-                'x_diff': x_diff,
-                'y_diff': y_diff
+                'r_diff': numpy.mean(r_diff),
+                'x_diff': numpy.mean(x_diff),
+                'y_diff': numpy.mean(y_diff),
+                'r_diff_std': numpy.std(r_diff),
+                'x_diff_std': numpy.std(x_diff),
+                'y_diff_std': numpy.std(y_diff)
             }, ignore_index=True)
 
     # Plot
@@ -112,15 +120,17 @@ def main(argv):
 
     ax2.set_xlabel('r')
     ax2.set_ylabel('(r_r - r_f) / r_r')
-    ax2.scatter(errors['r'], errors['r_diff'])
+    ax2.errorbar(errors['r'], errors['r_diff'], yerr=errors['r_diff_std'], fmt='o')
 
     ax3.set_xlabel('r')
     ax3.set_ylabel('(x_r - x_f) / x_r')
-    ax3.scatter(errors['r'], errors['x_diff'])
+    ax3.errorbar(errors['r'], errors['x_diff'], yerr=errors['x_diff_std'], fmt='o')
 
     ax4.set_xlabel('r')
     ax4.set_ylabel('(y_r - y_f) / y_r')
-    ax4.scatter(errors['r'], errors['y_diff'])
+    ax4.errorbar(errors['r'], errors['y_diff'], yerr=errors['y_diff_std'], fmt='o')
+
+    f.suptitle('Errors in fitting, ' + str(runs) + ' runs')
 
     plt.savefig(path)
 
