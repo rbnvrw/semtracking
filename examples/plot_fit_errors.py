@@ -4,6 +4,8 @@ import pandas
 import numpy
 import matplotlib.pyplot as plt
 import sys
+import scipy.spatial
+import matplotlib as mpl
 
 from semtracking import particlefinder, simulatedimage, plot, util
 
@@ -34,7 +36,8 @@ class TestImage:
         image.draw_features(self.number, separation=3 * self.radius)
         return image
 
-    def sort_dataframe(self, frame, sort_columns):
+    @staticmethod
+    def sort_dataframe(actual, expected):
         """
         Sort the dataframe by columns
 
@@ -43,10 +46,12 @@ class TestImage:
         :param sort_columns:
         :return:
         """
-        frame = frame.reindex_axis(sorted(frame.columns), axis=1)
-        frame = frame.reset_index(drop=True)
-        frame = frame.sort(sort_columns)
-        return frame.reset_index(drop=True)
+        positions_actual = actual[['x', 'y']].values
+        positions_expected = expected[['x', 'y']].values
+        tree = scipy.spatial.cKDTree(positions_actual)
+        devs, argsort = tree.query([positions_expected])
+        sorted_frame = actual.reindex(argsort[0])
+        return devs, sorted_frame
 
     def get_coords_dataframe(self, add_r=False):
         """
@@ -60,8 +65,39 @@ class TestImage:
         if add_r:
             coords_df['r'] = pandas.Series(self.radius, index=coords_df.index)
 
-        coords_df = self.sort_dataframe(coords_df, ['x', 'y'])
         return coords_df
+
+
+def set_latex_params():
+    fig_width_pt = 483.69687  # Get this from LaTeX using \the\textwidth
+    inches_per_pt = 1.0 / 72.27  # Convert pt to inch
+    golden_mean = (numpy.sqrt(5) - 1.0) / 2.0  # Aesthetic ratio
+    fig_width = fig_width_pt * inches_per_pt  # width in inches
+    fig_height = fig_width * golden_mean + fig_width / 7  # height in inches
+    fig_size = [fig_width, fig_height]
+
+    plt.rcParams['text.latex.preamble'] = [
+        r"\usepackage{mathpazo} \usepackage[separate-uncertainty=true]{siunitx} \DeclareSIUnit\Molar{\textsc{m}}"]
+
+    pdf_with_latex = {  # setup matplotlib to use latex for output
+                        "pgf.texsystem": "pdflatex",  # change this if using xetex or lautex
+                        "text.usetex": True,  # use LaTeX to write all text
+                        "font.family": "serif",
+                        "font.serif": [],  # blank entries should cause plots to inherit fonts from the document
+                        "font.sans-serif": [],
+                        "font.monospace": [],
+                        "axes.labelsize": 10,  # LaTeX default is 10pt font.
+                        "font.size": 12,
+                        "legend.fontsize": 8,  # Make the legend/label fonts a little smaller
+                        "xtick.labelsize": 10,
+                        "ytick.labelsize": 10,
+                        "figure.figsize": fig_size,
+                        'axes.linewidth': .5,
+                        'lines.linewidth': .5,
+                        'patch.linewidth': .5,
+                        'text.latex.unicode': True,
+                        }
+    mpl.rcParams.update(pdf_with_latex)
 
 
 def main(argv):
@@ -71,16 +107,19 @@ def main(argv):
     """
     directory = util.get_directory_from_command_line(argv, os.path.basename(__file__))
     path = os.path.join(directory, 'plot.pdf')
-    errors = pandas.DataFrame(columns=['r', 'num_diff', 'r_diff', 'x_diff', 'y_diff', 'r_diff_std', 'x_diff_std', 'y_diff_std'])
+    errors = pandas.DataFrame(
+        columns=['r', 'num_diff', 'r_diff', 'x_diff', 'y_diff', 'r_diff_std', 'x_diff_std', 'y_diff_std'])
     radii = numpy.arange(5, 30, 1)
     width = 1024
     height = 943
     runs = 10
 
+    set_latex_params()
+
     for r in radii:
         for run in numpy.arange(1, runs, 1):
             # Change number so each run is "random"
-            num = int(min([height / r, 100])+run)
+            num = int(min([height / r, 100]) + run)
 
             test = TestImage(num, r, noise=0.3, shape=(width, height))
             generated_image = test.image()
@@ -88,10 +127,9 @@ def main(argv):
             finder = particlefinder.ParticleFinder(generated_image)
             fits = finder.locate_particles(n=test.number * 1.5, size_range=(
                 int(numpy.ceil(0.8 * min(radii))), int(numpy.ceil(1.2 * max(radii)))))
-            fits = test.sort_dataframe(fits, ['x', 'y'])
 
             coords_df = test.get_coords_dataframe(True)
-            coords_df = test.sort_dataframe(coords_df, ['x', 'y'])
+            dev, fits = test.sort_dataframe(fits, coords_df)
 
             num_diff = (len(coords_df['r']) - len(fits['r'])) / len(coords_df['r'])
             r_diff = (coords_df['r'] - fits['r']) / coords_df['r']
@@ -99,7 +137,8 @@ def main(argv):
             y_diff = (coords_df['y'] - fits['y']) / coords_df['y']
 
             if abs(num_diff) > 0:
-                plot.save_fits(fits, generated_image, os.path.join(directory, 'mismatch_'+str(r)+'_'+str(run)+'.tiff'))
+                plot.save_fits(fits, generated_image,
+                               os.path.join(directory, 'mismatch_' + str(r) + '_' + str(run) + '.tiff'))
 
             errors = errors.append({
                 'r': r,
