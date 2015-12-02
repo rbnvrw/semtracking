@@ -146,6 +146,7 @@ def main(argv):
     """
     directory = util.get_directory_from_command_line(argv, os.path.basename(__file__))
     path = os.path.join(directory, 'plot.pdf')
+    filepath = os.path.join(directory, 'errors.csv')
     errors = pandas.DataFrame(
         columns=['r', 'num_diff', 'r_diff', 'x_diff', 'y_diff', 'r_diff_std', 'x_diff_std', 'y_diff_std'])
     radii = numpy.arange(5.0, 30.0, 1.0)
@@ -182,6 +183,8 @@ def main(argv):
             }, ignore_index=True)
             print str(float(index * runs + run) / float(len(radii) * runs) * 100.0) + '%'
 
+    # Save
+    errors.to_csv(filepath, encoding='utf-8')
     # Plot
     f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
     ax1.set_xlabel('r')
