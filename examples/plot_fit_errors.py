@@ -139,6 +139,31 @@ def set_latex_params():
     mpl.rcParams.update(pdf_with_latex)
 
 
+def plot_frame(errors, runs, path):
+    # Plot
+    f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+    ax1.set_xlabel('r')
+    ax1.set_ylabel('$\%$ found')
+    ax1.scatter(errors['r'], errors['num_diff']*100.0)
+
+    ax2.set_xlabel('r')
+    ax2.set_ylabel('$\%$ deviation in $r$')
+    ax2.errorbar(errors['r'], errors['r_diff']*100.0, yerr=errors['r_diff_std']*100.0, fmt='o')
+
+    ax3.set_xlabel('r')
+    ax3.set_ylabel('$x_r - x_f$ (px)')
+    ax3.errorbar(errors['r'], errors['x_diff'], yerr=errors['x_diff_std'], fmt='o')
+
+    ax4.set_xlabel('r')
+    ax4.set_ylabel('$y_r - y_f$ (px)')
+    ax4.errorbar(errors['r'], errors['y_diff'], yerr=errors['y_diff_std'], fmt='o')
+
+    f.suptitle('Errors in fitting, ' + str(int(round(runs))) + ' runs per $r$')
+    f.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+    plt.savefig(path)
+
+
 def main(argv):
     """
 
@@ -148,16 +173,16 @@ def main(argv):
     path = os.path.join(directory, 'plot.pdf')
     filepath = os.path.join(directory, 'errors.csv')
     errors = pandas.DataFrame(
-        columns=['r', 'num_diff', 'r_diff', 'x_diff', 'y_diff', 'r_diff_std', 'x_diff_std', 'y_diff_std'])
-    radii = numpy.arange(5.0, 30.0, 1.0)
+        columns=['r', 'runs', 'num_diff', 'r_diff', 'x_diff', 'y_diff', 'r_diff_std', 'x_diff_std', 'y_diff_std'])
+    radii = numpy.arange(5.0, 31.0, 1.0)
     width = 1024
     height = 943
-    runs = 50
+    runs = 10
 
     set_latex_params()
 
     for index, r in enumerate(radii):
-        for run in numpy.arange(1, runs, 1):
+        for run in numpy.arange(0, runs, 1):
             num = round(min([height / r, 100]))
 
             test = TestImage(num, r, noise=0.3, shape=(width, height))
@@ -172,8 +197,9 @@ def main(argv):
             unmatched, value_diff = test.check_frames_difference(fits, expected=coords_df)
 
             errors = errors.append({
+                'runs': runs,
                 'r': r,
-                'num_diff': (len(coords_df['r']) - unmatched) / len(coords_df['r']),
+                'num_diff': float(len(coords_df['r']) - unmatched) / float(len(coords_df['r'])),
                 'r_diff': numpy.mean(value_diff['r']) / r,
                 'x_diff': numpy.mean(value_diff['x']),
                 'y_diff': numpy.mean(value_diff['y']),
@@ -185,29 +211,21 @@ def main(argv):
 
     # Save
     errors.to_csv(filepath, encoding='utf-8')
-    # Plot
-    f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-    ax1.set_xlabel('r')
-    ax1.set_ylabel('% found')
-    ax1.scatter(errors['r'], errors['num_diff'])
+    plot_frame(errors, runs, path)
 
-    ax2.set_xlabel('r')
-    ax2.set_ylabel('$(r_r - r_f) / r_r$')
-    ax2.errorbar(errors['r'], errors['r_diff'], yerr=errors['r_diff_std'], fmt='o')
 
-    ax3.set_xlabel('r')
-    ax3.set_ylabel('$x_r - x_f$ (pixels)')
-    ax3.errorbar(errors['r'], errors['x_diff'], yerr=errors['x_diff_std'], fmt='o')
+def main_only_plot(argv):
+    """
 
-    ax4.set_xlabel('r')
-    ax4.set_ylabel('$y_r - y_f$ (pixels)')
-    ax4.errorbar(errors['r'], errors['y_diff'], yerr=errors['y_diff_std'], fmt='o')
-
-    f.suptitle('Errors in fitting, ' + str(runs) + ' runs')
-    f.tight_layout(rect=[0, 0.03, 1, 0.95])
-
-    plt.savefig(path)
+    :param argv:
+    """
+    directory = util.get_directory_from_command_line(argv, os.path.basename(__file__))
+    path = os.path.join(directory, 'plot.pdf')
+    filepath = os.path.join(directory, 'errors.csv')
+    errors = pandas.DataFrame.from_csv(filepath)
+    plot_frame(errors, round(errors['runs'][0]), path)
 
 
 if __name__ == "__main__":
+    #main_only_plot(sys.argv[1:])
     main(sys.argv[1:])
