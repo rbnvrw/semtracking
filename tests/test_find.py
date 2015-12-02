@@ -22,7 +22,7 @@ class TestFindParticles(unittest.TestCase):
         :rtype : semtracking.SimulatedImage
         :return:
         """
-        image = si.SimulatedImage(shape=(1024, 943), dtype=np.float, radius=self.radius, noise=0.3)
+        image = si.SimulatedImage(shape=(1024, 943), radius=self.radius, noise=0.3)
         image.draw_features(self.number, separation=3 * self.radius)
         return image
 

@@ -112,7 +112,7 @@ class ParticleFinder:
             data.drop(to_drop, inplace=True)
 
         # Keep only brightest n circles
-        data = data.sort(['accum'], ascending=False)
+        data = data.sort_values(by=['accum'], ascending=False)
         data = data.head(self.n)
 
         return data

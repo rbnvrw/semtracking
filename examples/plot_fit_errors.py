@@ -4,7 +4,6 @@ import pandas
 import numpy
 import matplotlib.pyplot as plt
 import sys
-import scipy.spatial
 import matplotlib as mpl
 
 from semtracking import particlefinder, simulatedimage, plot, util
@@ -32,26 +31,9 @@ class TestImage:
         :rtype : semtracking.SimulatedImage
         :return:
         """
-        image = simulatedimage.SimulatedImage(shape=shape, dtype=numpy.float, radius=self.radius, noise=noise)
+        image = simulatedimage.SimulatedImage(shape=shape, radius=self.radius, noise=noise)
         image.draw_features(self.number, separation=3 * self.radius)
         return image
-
-    @staticmethod
-    def sort_dataframe(actual, expected):
-        """
-        Sort the dataframe by columns
-
-        :rtype : pandas.DataFrame
-        :param frame:
-        :param sort_columns:
-        :return:
-        """
-        positions_actual = actual[['x', 'y']].values
-        positions_expected = expected[['x', 'y']].values
-        tree = scipy.spatial.cKDTree(positions_actual)
-        devs, argsort = tree.query([positions_expected])
-        sorted_frame = actual.reindex(argsort[0])
-        return devs, sorted_frame
 
     def get_coords_dataframe(self, add_r=False):
         """
@@ -66,6 +48,63 @@ class TestImage:
             coords_df['r'] = pandas.Series(self.radius, index=coords_df.index)
 
         return coords_df
+
+    @staticmethod
+    def find_closest_index(expected_row, actual_df, intersection, column1, column2, tolerance=5.0):
+        diffs = {i: abs(expected_row[column1] - actual_df.loc[i][column1]) + abs(
+            expected_row[column2] - actual_df.loc[i][column2]) for i in intersection}
+
+        key = min(diffs, key=diffs.get)
+
+        if diffs[key] / 2.0 < tolerance:
+            return key
+        else:
+            return False
+
+    def find_intersections(self, expected_row, actual_df, closest_dict, column1, column2, tolerance=5.0):
+        intersection = list(set(closest_dict[column1]).intersection(closest_dict[column2]))
+
+        if len(intersection) == 0:
+            return False
+        else:
+            return self.find_closest_index(expected_row, actual_df, intersection, column1, column2, tolerance)
+
+    def find_closest_row_index(self, expected_row, actual_df, column1, column2, tolerance=5.0):
+        closest = {c: (actual_df[c] - expected_row[c]).abs().argsort()[:10] for c in [column1, column2]}
+        return self.find_intersections(expected_row, actual_df, closest, column1, column2, tolerance)
+
+    def check_frames_difference(self, actual, expected, sizecol='r'):
+        """
+        Compare DataFrame items by index and column and
+        raise AssertionError if any item is not equal.
+
+        Ordering is unimportant, items are compared only by label.
+        NaN and infinite values are supported.
+
+        Parameters
+        ----------
+        actual : pandas.DataFrame
+        expected : pandas.DataFrame
+        use_close : bool, optional
+            If True, use numpy.testing.assert_allclose instead of
+            numpy.testing.assert_equal.
+
+        """
+        unmatched = 0
+        value_diff = pandas.DataFrame(columns=expected.columns)
+
+        for i, exp_row in expected.iterrows():
+            # tolerance in pixels
+            tolerance = max(exp_row[sizecol] * 0.1, 5.0)
+            act_row_index = self.find_closest_row_index(exp_row, actual, 'x', 'y', tolerance)
+            if act_row_index is False:
+                unmatched += 1
+                continue
+
+            act_row = actual.loc[act_row_index]
+            diff = exp_row - act_row[expected.columns]
+            value_diff = value_diff.append(diff, ignore_index=True)
+        return unmatched, value_diff
 
 
 def set_latex_params():
@@ -109,17 +148,16 @@ def main(argv):
     path = os.path.join(directory, 'plot.pdf')
     errors = pandas.DataFrame(
         columns=['r', 'num_diff', 'r_diff', 'x_diff', 'y_diff', 'r_diff_std', 'x_diff_std', 'y_diff_std'])
-    radii = numpy.arange(5, 30, 1)
+    radii = numpy.arange(5.0, 30.0, 1.0)
     width = 1024
     height = 943
-    runs = 10
+    runs = 50
 
     set_latex_params()
 
-    for r in radii:
+    for index, r in enumerate(radii):
         for run in numpy.arange(1, runs, 1):
-            # Change number so each run is "random"
-            num = int(min([height / r, 100]) + run)
+            num = round(min([height / r, 100]))
 
             test = TestImage(num, r, noise=0.3, shape=(width, height))
             generated_image = test.image()
@@ -129,47 +167,41 @@ def main(argv):
                 int(numpy.ceil(0.8 * min(radii))), int(numpy.ceil(1.2 * max(radii)))))
 
             coords_df = test.get_coords_dataframe(True)
-            dev, fits = test.sort_dataframe(fits, coords_df)
 
-            num_diff = (len(coords_df['r']) - len(fits['r'])) / len(coords_df['r'])
-            r_diff = (coords_df['r'] - fits['r']) / coords_df['r']
-            x_diff = (coords_df['x'] - fits['x']) / coords_df['x']
-            y_diff = (coords_df['y'] - fits['y']) / coords_df['y']
-
-            if abs(num_diff) > 0:
-                plot.save_fits(fits, generated_image,
-                               os.path.join(directory, 'mismatch_' + str(r) + '_' + str(run) + '.tiff'))
+            unmatched, value_diff = test.check_frames_difference(fits, expected=coords_df)
 
             errors = errors.append({
                 'r': r,
-                'num_diff': num_diff,
-                'r_diff': numpy.mean(r_diff),
-                'x_diff': numpy.mean(x_diff),
-                'y_diff': numpy.mean(y_diff),
-                'r_diff_std': numpy.std(r_diff),
-                'x_diff_std': numpy.std(x_diff),
-                'y_diff_std': numpy.std(y_diff)
+                'num_diff': (len(coords_df['r']) - unmatched) / len(coords_df['r']),
+                'r_diff': numpy.mean(value_diff['r']) / r,
+                'x_diff': numpy.mean(value_diff['x']),
+                'y_diff': numpy.mean(value_diff['y']),
+                'r_diff_std': numpy.std(value_diff['r']) / r,
+                'x_diff_std': numpy.std(value_diff['x']),
+                'y_diff_std': numpy.std(value_diff['y'])
             }, ignore_index=True)
+            print str(float(index * runs + run) / float(len(radii) * runs) * 100.0) + '%'
 
     # Plot
     f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
     ax1.set_xlabel('r')
-    ax1.set_ylabel('(n_r - n_f) / n_r')
+    ax1.set_ylabel('% found')
     ax1.scatter(errors['r'], errors['num_diff'])
 
     ax2.set_xlabel('r')
-    ax2.set_ylabel('(r_r - r_f) / r_r')
+    ax2.set_ylabel('$(r_r - r_f) / r_r$')
     ax2.errorbar(errors['r'], errors['r_diff'], yerr=errors['r_diff_std'], fmt='o')
 
     ax3.set_xlabel('r')
-    ax3.set_ylabel('(x_r - x_f) / x_r')
+    ax3.set_ylabel('$x_r - x_f$ (pixels)')
     ax3.errorbar(errors['r'], errors['x_diff'], yerr=errors['x_diff_std'], fmt='o')
 
     ax4.set_xlabel('r')
-    ax4.set_ylabel('(y_r - y_f) / y_r')
+    ax4.set_ylabel('$y_r - y_f$ (pixels)')
     ax4.errorbar(errors['r'], errors['y_diff'], yerr=errors['y_diff_std'], fmt='o')
 
     f.suptitle('Errors in fitting, ' + str(runs) + ' runs')
+    f.tight_layout(rect=[0, 0.03, 1, 0.95])
 
     plt.savefig(path)
 
