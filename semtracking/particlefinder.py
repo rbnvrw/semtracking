@@ -52,8 +52,7 @@ class ParticleFinder:
         :rtype : pandas.DataFrame
         :return:
         """
-        num_r = min(abs(self.size_range[1] - self.size_range[0]), 30)
-        radii = np.linspace(self.size_range[0], self.size_range[1], num_r)
+        radii = np.arange(self.size_range[0], self.size_range[1], step=0.5, dtype=np.float)
 
         # Find edges
         edges = skimage.feature.canny(self.image)

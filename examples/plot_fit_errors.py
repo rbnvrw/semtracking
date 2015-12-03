@@ -190,7 +190,7 @@ def main(argv):
 
             finder = particlefinder.ParticleFinder(generated_image)
             fits = finder.locate_particles(n=test.number * 1.5, size_range=(
-                int(numpy.ceil(0.8 * min(radii))), int(numpy.ceil(1.2 * max(radii)))))
+                int(numpy.ceil(0.5 * min(radii))), int(numpy.ceil(2.0 * max(radii)))))
 
             coords_df = test.get_coords_dataframe(True)
 
