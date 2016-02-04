@@ -1,0 +1,2 @@
+include versioneer.py
+include semtracking/_version.py

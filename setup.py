@@ -1,6 +1,6 @@
 from os import path
 from setuptools import setup
-
+import versioneer
 
 def read(file_name):
     return open(path.join(path.dirname(__file__), file_name)).read()
@@ -17,7 +17,8 @@ else:
 
 setup_parameters = dict(
     name="semtracking",
-    version='1.0',
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     description="particle-tracking toolkit",
     author="Soft Matter",
     author_email="rbnvrw@gmail.com",
@@ -25,8 +26,9 @@ setup_parameters = dict(
     install_requires=['numpy', 'scipy', 'six',
                       'pandas', 'pims', 'pims_nd2',
                       'pyyaml', 'matplotlib', 'trackpy', 'nose'],
+    requires=['scipy', 'numpy', 'pandas'],
     packages=['semtracking'],
     long_description=read('README.md')
 )
 
-setup(**setup_parameters, requires=['scipy', 'numpy', 'pandas'])
+setup(**setup_parameters)
