@@ -1,5 +1,6 @@
 semtracking
 =======
+[![DOI](https://zenodo.org/badge/20271/rbnvrw/semtracking.svg)](https://zenodo.org/badge/latestdoi/20271/rbnvrw/semtracking)
 
 Find particles in SEM images. Example usage is shown in the ``examples`` folder.
 
